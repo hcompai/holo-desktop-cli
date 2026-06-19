@@ -1,0 +1,414 @@
+name: Holo Full E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      fast:
+        description: "Run with fast mode (--fast: one screenshot, no thinking, smaller uploads)"
+        type: boolean
+        default: false
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  full-e2e:
+    name: full-e2e (${{ matrix.platform_name }} shard ${{ matrix.shard_display }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.action == 'labeled' &&
+        (github.event.label.name == 'run-holo-full-e2e' || github.event.label.name == 'run-holo-full-e2e-fast') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin
+            platform_name: macOS
+            shard_index: 0
+            shard_total: 4
+            shard_display: 1/4
+          - os: macos-14
+            platform: darwin
+            platform_name: macOS
+            shard_index: 1
+            shard_total: 4
+            shard_display: 2/4
+          - os: macos-14
+            platform: darwin
+            platform_name: macOS
+            shard_index: 2
+            shard_total: 4
+            shard_display: 3/4
+          - os: macos-14
+            platform: darwin
+            platform_name: macOS
+            shard_index: 3
+            shard_total: 4
+            shard_display: 4/4
+          - os: windows-latest
+            platform: win32
+            platform_name: Windows
+            shard_index: 0
+            shard_total: 4
+            shard_display: 1/4
+          - os: windows-latest
+            platform: win32
+            platform_name: Windows
+            shard_index: 1
+            shard_total: 4
+            shard_display: 2/4
+          - os: windows-latest
+            platform: win32
+            platform_name: Windows
+            shard_index: 2
+            shard_total: 4
+            shard_display: 3/4
+          - os: windows-latest
+            platform: win32
+            platform_name: Windows
+            shard_index: 3
+            shard_total: 4
+            shard_display: 4/4
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      AWS_REGION: us-west-2
+      HAI_API_KEY_SECRET_ID: ${{ vars.HAI_API_KEY_SECRET_ID }}
+      HAI_API_KEY_SECRET_FIELD: github-actions
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure shard artifact paths
+        shell: bash
+        run: |
+          {
+            echo "HOLO_E2E_ARTIFACT_ROOT=$RUNNER_TEMP/holo-full-e2e-artifacts-${{ matrix.platform }}-${{ matrix.shard_index }}"
+            echo "HOLO_E2E_REPORT_DIR=$RUNNER_TEMP/holo-full-e2e-report-${{ matrix.platform }}-${{ matrix.shard_index }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Log GitHub OIDC claims
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sts.amazonaws.com');
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+            for (const claim of ['iss', 'aud', 'sub', 'repository', 'repository_owner', 'ref', 'workflow_ref', 'job_workflow_ref']) {
+              core.info(`oidc ${claim}: ${payload[claim] ?? '<unset>'}`);
+            }
+            core.info(`github event_name: ${context.eventName}`);
+            core.info(`github ref: ${context.ref}`);
+            core.info(`github head_ref: ${context.payload.pull_request?.head?.ref ?? '<unset>'}`);
+            core.info(`github base_ref: ${context.payload.pull_request?.base?.ref ?? '<unset>'}`);
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+
+      - name: Fetch HAI API key
+        if: runner.os != 'Windows'
+        id: fetch-hai-api-key
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          secret_string="$(aws secretsmanager get-secret-value \
+            --secret-id "$HAI_API_KEY_SECRET_ID" \
+            --query SecretString \
+            --output text)"
+
+          hai_api_key="$(
+            SECRET_STRING="$secret_string" python - <<'PY'
+          import json
+          import os
+          import sys
+
+          field = os.environ.get("HAI_API_KEY_SECRET_FIELD", "").strip()
+          secret = os.environ["SECRET_STRING"]
+          try:
+              parsed = json.loads(secret)
+          except json.JSONDecodeError:
+              parsed = secret
+
+          if isinstance(parsed, dict):
+              print(f"Secrets Manager fields: {', '.join(sorted(parsed))}", file=sys.stderr)
+              if field:
+                  value = parsed.get(field) or ""
+                  print(f"Selected HAI API key field: {field}", file=sys.stderr)
+              else:
+                  value = parsed.get("HAI_API_KEY") or parsed.get("github-actions") or parsed.get("internal") or ""
+                  print("Selected HAI API key field by fallback order", file=sys.stderr)
+          else:
+              value = str(parsed)
+              print("Secrets Manager value is not JSON; using raw secret string", file=sys.stderr)
+
+          value = value.strip()
+          if not value:
+              selected = field or "HAI_API_KEY/github-actions/internal"
+              sys.exit(f"Secrets Manager value did not contain `{selected}`")
+          print(f"Selected HAI API key length: {len(value)}", file=sys.stderr)
+          print(value)
+          PY
+          )"
+
+          echo "::add-mask::$hai_api_key"
+          echo "hai-api-key=$hai_api_key" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch HAI API key
+        if: runner.os == 'Windows'
+        id: fetch-hai-api-key-windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $secretString = aws secretsmanager get-secret-value `
+            --secret-id "$env:HAI_API_KEY_SECRET_ID" `
+            --query SecretString `
+            --output text
+
+          $field = "$env:HAI_API_KEY_SECRET_FIELD".Trim()
+          $value = ""
+
+          try {
+            $parsed = $secretString | ConvertFrom-Json -ErrorAction Stop
+          } catch {
+            $parsed = $null
+          }
+
+          if ($null -ne $parsed) {
+            $fields = @($parsed.PSObject.Properties.Name | Sort-Object)
+            Write-Host "Secrets Manager fields: $($fields -join ', ')"
+
+            if ($field) {
+              $property = $parsed.PSObject.Properties[$field]
+              if ($null -ne $property) {
+                $value = [string]$property.Value
+              }
+              Write-Host "Selected HAI API key field: $field"
+            } else {
+              foreach ($candidate in @("HAI_API_KEY", "github-actions", "internal")) {
+                $property = $parsed.PSObject.Properties[$candidate]
+                if ($null -ne $property -and "$($property.Value)".Trim()) {
+                  $value = [string]$property.Value
+                  break
+                }
+              }
+              Write-Host "Selected HAI API key field by fallback order"
+            }
+          } else {
+            $value = $secretString
+            Write-Host "Secrets Manager value is not JSON; using raw secret string"
+          }
+
+          $value = "$value".Trim()
+          if (-not $value) {
+            $selected = if ($field) { $field } else { "HAI_API_KEY/github-actions/internal" }
+            throw "Secrets Manager value did not contain $selected"
+          }
+
+          Write-Host "Selected HAI API key length: $($value.Length)"
+          Write-Output "::add-mask::$value"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "hai-api-key=$value"
+
+      - name: Probe HAI API key entitlement
+        shell: bash
+        env:
+          HAI_API_KEY: ${{ steps.fetch-hai-api-key.outputs.hai-api-key }}${{ steps.fetch-hai-api-key-windows.outputs.hai-api-key }}
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          key = os.environ.get("HAI_API_KEY", "").strip()
+          if not key:
+              sys.exit("HAI_API_KEY was not exported")
+
+          url = os.environ.get("HAI_BASE_URL", "").strip() or "https://api.hcompany.ai/v1/models"
+          request = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+
+          try:
+              with urllib.request.urlopen(request, timeout=10) as response:
+                  status = response.status
+          except urllib.error.HTTPError as exc:
+              status = exc.code
+          except Exception as exc:
+              print(f"Gateway probe could not verify key: {type(exc).__name__}", file=sys.stderr)
+              raise
+
+          print(f"Gateway entitlement probe status: {status}")
+          if status in (401, 403):
+              sys.exit("HAI API key is present but the gateway rejected it")
+          if status != 200:
+              sys.exit(f"HAI API key entitlement probe returned unexpected status {status}")
+          PY
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: List full e2e shard task ids
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run python -m tests.e2e._report \
+            --list-task-ids-for-platform "${{ matrix.platform }}" \
+            --shard-index "${{ matrix.shard_index }}" \
+            --shard-total "${{ matrix.shard_total }}" \
+            > "$RUNNER_TEMP/holo-task-ids.txt"
+          echo "Task ids for ${{ matrix.platform_name }} shard ${{ matrix.shard_display }}:"
+          cat "$RUNNER_TEMP/holo-task-ids.txt"
+
+      - name: Run full live e2e suite
+        id: run-full-suite
+        shell: bash
+        env:
+          HAI_API_KEY: ${{ steps.fetch-hai-api-key.outputs.hai-api-key }}${{ steps.fetch-hai-api-key-windows.outputs.hai-api-key }}
+        continue-on-error: true
+        run: |
+          set +e
+          fast_args=()
+          if [ "${{ github.event.inputs.fast }}" = "true" ] || [ "${{ github.event.label.name }}" = "run-holo-full-e2e-fast" ]; then
+            fast_args+=(--holo-fast)
+            echo "Fast mode ON for this run"
+          fi
+          suite_status=0
+          while IFS= read -r task_id; do
+            task_id="${task_id%$'\r'}"
+            [ -n "$task_id" ] || continue
+            echo "::group::Holo live e2e: $task_id"
+            uv run pytest tests/e2e/test_live_foreground.py \
+              --run-holo-live-foreground \
+              --holo-live-task-ids "$task_id" \
+              --holo-live-timeout 240 \
+              "${fast_args[@]}" \
+              --capture=tee-sys \
+              -q
+            task_status=$?
+            uv run python -m tests.e2e._report "$HOLO_E2E_ARTIFACT_ROOT" \
+              --platform "${{ matrix.platform_name }}" \
+              --append-task-summary \
+              --task-id "$task_id"
+            report_status=$?
+            echo "::endgroup::"
+            if [ "$task_status" -ne 0 ] || [ "$report_status" -ne 0 ]; then
+              suite_status=1
+            fi
+          done < "$RUNNER_TEMP/holo-task-ids.txt"
+          echo "suite_status=$suite_status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Write shard report
+        if: always()
+        shell: bash
+        continue-on-error: true
+        run: |
+          uv run python -m tests.e2e._report "$HOLO_E2E_ARTIFACT_ROOT" \
+            --platform "${{ matrix.platform_name }}" \
+            --report-dir "$HOLO_E2E_REPORT_DIR" \
+            --expected-task-ids-file "$RUNNER_TEMP/holo-task-ids.txt" \
+            --append-step-summary
+
+      - name: Check full e2e artifact redactions
+        id: check-full-e2e-artifact-redactions
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          paths=()
+          [ ! -d "$HOLO_E2E_ARTIFACT_ROOT" ] || paths+=("$HOLO_E2E_ARTIFACT_ROOT")
+          [ ! -d "$HOLO_E2E_REPORT_DIR" ] || paths+=("$HOLO_E2E_REPORT_DIR")
+          if [ "${#paths[@]}" -eq 0 ]; then
+            echo "No full e2e artifact paths were created."
+            exit 0
+          fi
+
+          if grep -R -I -q -E 'HAI_API_KEY[[:space:]]*[=:][[:space:]]*[^[:space:]]{20,}|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|Bearer[[:space:]]+hk-[A-Za-z0-9._~+/-]{20,}|hk-[A-Za-z0-9._~+/-]{20,}' "${paths[@]}"; then
+            echo "Potential secret material found in full e2e artifacts" >&2
+            exit 1
+          fi
+
+      - name: Upload full e2e artifacts
+        if: always() && steps.check-full-e2e-artifact-redactions.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: holo-full-e2e-${{ github.run_id }}-${{ runner.os }}-shard-${{ matrix.shard_index }}
+          path: |
+            ${{ env.HOLO_E2E_ARTIFACT_ROOT }}
+            ${{ env.HOLO_E2E_REPORT_DIR }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Fail after reports are uploaded
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.run-full-suite.outputs.suite_status }}" != "0" ]; then
+            exit 1
+          fi
+
+  aggregate:
+    name: aggregate full-e2e summary
+    needs: full-e2e
+    if: always() && needs.full-e2e.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/holo-full-e2e-downloads
+          pattern: holo-full-e2e-${{ github.run_id }}-*
+
+      - name: Write aggregate summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary_args=()
+          while IFS= read -r summary_path; do
+            summary_args+=(--aggregate-summary-json "$summary_path")
+          done < <(find "$RUNNER_TEMP/holo-full-e2e-downloads" -name summary.json -type f | sort)
+
+          if [ "${#summary_args[@]}" -eq 0 ]; then
+            echo "No shard summary.json files found" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          uv run python -m tests.e2e._report \
+            "${summary_args[@]}" \
+            --aggregate-report-dir "$RUNNER_TEMP/holo-full-e2e-aggregate"
+
+      - name: Upload aggregate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: holo-full-e2e-aggregate-${{ github.run_id }}
+          path: ${{ runner.temp }}/holo-full-e2e-aggregate
+          if-no-files-found: warn
+          retention-days: 14

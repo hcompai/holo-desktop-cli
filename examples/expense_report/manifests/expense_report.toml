@@ -1,0 +1,52 @@
+# Receipts/invoices sourced from OSWorld (xlang-ai): https://github.com/xlang-ai/OSWorld
+# Dataset: https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/8e116af7-7db7-4e35-a68b-b0939c066c78/my_bookkeeping.xlsx"
+dest = "templates/bookkeeping.xlsx"
+sha256 = "6791db3e5410ed6b54e10e591e542d431d331e83b7e893512f18e45c85569e10"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/8e116af7-7db7-4e35-a68b-b0939c066c78/receipt_0.jpeg"
+dest = "receipts/01-receipt-8e116af7.jpeg"
+sha256 = "b35ff62057908666a54a88e82362a326ca8611a534dd7291b5c2e93d6e1dc1f0"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/8e116af7-7db7-4e35-a68b-b0939c066c78/receipt_1.jpg"
+dest = "receipts/02-receipt-8e116af7.jpg"
+sha256 = "ecd4a6db51ded9b9f62bbc32a31bbfbb86b2b7c8dacd59ebe0ee350ea012204d"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/8e116af7-7db7-4e35-a68b-b0939c066c78/receipt_2.jpg"
+dest = "receipts/03-receipt-8e116af7.jpg"
+sha256 = "bd3a2b3d17750b4fe687074e3e767b734f8c5aeecc1dbbc3405e9875473b8e83"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/8e116af7-7db7-4e35-a68b-b0939c066c78/receipt_3.pdf"
+dest = "receipts/04-receipt-8e116af7.pdf"
+sha256 = "48deb476a3c75fffaf1f231add391db5aa53a359754bfd6bd112672d4879260b"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/8e116af7-7db7-4e35-a68b-b0939c066c78/receipt_4.jpg"
+dest = "receipts/05-receipt-8e116af7.jpg"
+sha256 = "942845ec6310d852bc93510383a57bb5210c71bc89f31ea7ed60e5c1ec6f1d3d"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/4e9f0faf-2ecc-4ae8-a804-28c9a75d1ddc/invoice.pdf"
+dest = "receipts/06-invoice-4e9f0faf.pdf"
+sha256 = "1d8c8f44e5dcb4b17b051dcbd0c3e8dcc9ec68ba4abc758ce62ae63559bd74fe"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/337d318b-aa07-4f4f-b763-89d9a2dd013f/invoice%20TII-20220301-90.pdf"
+dest = "receipts/07-invoice-TII-20220301-90.pdf"
+sha256 = "6d116abe3eaac051dfe4f484ab5d3a5b1298601dc6026ffc1c683172463ebcb1"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/337d318b-aa07-4f4f-b763-89d9a2dd013f/Invoice%20%23%20GES-20220215-82.pdf"
+dest = "receipts/08-invoice-GES-20220215-82.pdf"
+sha256 = "729939cc631fccecaed8a5583a9beee0971d8d01724afcca899627f7c9b98c6f"
+
+[[pull]]
+url = "https://huggingface.co/datasets/xlangai/ubuntu_osworld_file_cache/resolve/main/multi_apps/337d318b-aa07-4f4f-b763-89d9a2dd013f/Invoice%20%23%20243729.pdf"
+dest = "receipts/09-invoice-243729.pdf"
+sha256 = "39c23a5792795583184c3694de5b0187d895e6ef75d2e2cbfbdd16b23f1c3594"

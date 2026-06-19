@@ -1,0 +1,16 @@
+---
+description: Run Holo QA for UI-facing changes in Nimbus Desk
+globs:
+  - "src/**/*.jsx"
+  - "qa/*.md"
+alwaysApply: false
+---
+
+For UI-facing changes, follow `AGENTS.md`.
+
+Use the `holo-qa` MCP tools. If they are unavailable, stop and report that the
+Holo QA tools are unavailable.
+
+Implement the requested change before hunting unrelated existing bugs. Use Holo
+QA as the UI evidence, then make at most one minimal fix and re-run the same
+spec once.

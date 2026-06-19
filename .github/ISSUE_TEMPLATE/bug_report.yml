@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in holo-desktop-cli isn't working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please don't file security issues here. See [SECURITY.md](../../SECURITY.md) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do and what went wrong? Include the exact `holo ...` command.
+      placeholder: |
+        $ holo run "..."
+        ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and architecture
+      placeholder: macOS 15.5 (arm64) / Ubuntu 24.04 (x86_64) / Windows 11
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: holo-desktop-cli version
+      description: From `pip show holo-desktop-cli`, or the version in pyproject.toml for a checkout.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: holo doctor output
+      description: Paste `holo doctor`. It reports the binary, login, and runtime version.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Runtime stderr from `~/.holo/logs/hai-agent-runtime-<port>.log`, if any.
+      render: text
+  - type: checkboxes
+    id: not-security
+    attributes:
+      label: Confirmation
+      options:
+        - label: This is not a security vulnerability (those go to SECURITY.md, not public issues).
+          required: true
