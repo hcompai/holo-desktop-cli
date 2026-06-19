@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "holo-expense-report-demo"
+version = "0.1.0"
+description = "HoloDesktop CLI example: a deterministically verified multi-app expense-report demo for holo-desktop-cli."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Kai Yuan" }]
+keywords = ["holo-desktop-cli", "holodesktop", "agent", "demo"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "holo-desktop-cli",
+    "httpx>=0.28.1",
+    "openpyxl>=3.1.0",
+    "pydantic>=2.11.4",
+    "rich>=13.0",
+    "tomli-w>=1.0",
+    "tyro>=0.8",
+]
+
+# Resolve holo-desktop-cli from the enclosing workspace checkout (the repo root).
+[tool.uv.sources]
+holo-desktop-cli = { workspace = true }
+
+[project.scripts]
+expense-report-demo = "expense_report_demo.cli:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/expense_report_demo"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/expense_report_demo", "manifests", "README.md", "pyproject.toml"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["src"]
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501", "B008", "B904", "SIM108"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests"]
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"

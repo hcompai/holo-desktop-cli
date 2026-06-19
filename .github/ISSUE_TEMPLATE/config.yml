@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/hcompai/holo-desktop-cli/security/advisories/new
+    about: Report security issues privately via a GitHub advisory, not a public issue.
+  - name: Questions and general help
+    url: mailto:contact@hcompany.ai
+    about: For usage questions and anything that isn't a bug or feature request.

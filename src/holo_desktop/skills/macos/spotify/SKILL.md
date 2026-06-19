@@ -1,0 +1,56 @@
+---
+name: Spotify
+description: Searching, playing, queueing, and managing playlists, library, and device output in the Spotify desktop app.
+publisher: H Company
+version: "1.0.0"
+source_url: https://support.spotify.com/us/article/keyboard-shortcuts/
+license: Vendor docs
+bundle_id: com.spotify.client
+icon_url: https://api.iconify.design/logos:spotify-icon.svg
+---
+
+Spotify is a three-pane Electron app: a left sidebar with "Your Library" (Playlists, Podcasts, Artists, Albums, Audiobooks) and pinned items at the top, the main pane in the middle showing the selected view (Home, Search results, playlist contents, artist page, etc.), and an optional right "Now Playing" pane with the current track's details, lyrics, queue, and credits. The persistent player bar runs across the bottom with playback controls, track info, queue/device buttons, and the volume slider.
+
+## Shortcuts
+
+Search and navigation: `Cmd+K` opens Search (the most-used shortcut by far — type any artist, song, album, podcast, or audiobook). `Cmd+L` jumps to Search from anywhere; `Alt+Shift+H` jumps to Home; `Alt+Shift+J` jumps to the Now Playing context (the album/playlist that owns the current track). `Cmd+Alt+Left` / `Cmd+Alt+Right` are back/forward in navigation history. `Cmd+/` opens the searchable keyboard-shortcuts help overlay — the in-app reference if a shortcut isn't documented here.
+
+Library sections: `Alt+Shift+0` Library overview, `Alt+Shift+1` Playlists, `Alt+Shift+2` Podcasts, `Alt+Shift+3` Artists, `Alt+Shift+4` Albums, `Alt+Shift+5` Audiobooks. `Alt+Shift+S` jumps to Liked Songs. `Alt+Shift+Q` opens the Queue side panel.
+
+Playback: `Space` play/pause. `Cmd+Right` / `Cmd+Left` next/previous track. `Cmd+Up` / `Cmd+Down` adjust volume. `M` mute/unmute. `Alt+S` toggle shuffle, `Alt+R` cycle repeat (off → all → one). `Alt+Shift+B` like the currently-playing song; pressing again unlikes.
+
+Queue and discovery: `Right Arrow` (on a focused track) adds to Queue, `Left Arrow` adds to Library (Liked Songs for tracks, Saved for albums/podcasts). `Cmd+F` filters the current view (playlist, album, artist's top tracks, library list).
+
+Composer-style controls: in any list, `Up`/`Down` to focus a row, `Return` to play, `Cmd+Return` to play next, `Alt+J` opens the context menu (right-click equivalent — Add to Playlist, Save to Library, Share, View Artist, etc.).
+
+## Search-first workflow
+
+`Cmd+K` is the entry point for almost every task. Type the query — Spotify scopes results to Songs, Artists, Albums, Playlists, Podcasts & Shows, Audiobooks, and Profiles in tabs at the top of the results pane. `Tab` switches result categories; `Return` on a result navigates to it (NOT plays it — playing requires hovering the result and clicking the green play button, or focusing it and pressing `Return` on the row in the result list).
+
+For commands that need a specific track, search for "artist - track name" then play the first result. For commands that need to play an album from start, search "album name" then click the album, then play. For mood/genre/situation playlists, Spotify's curated playlists ("Discover Weekly", "Daily Mix 1", "Release Radar") are reachable via search or under Home → Made For You.
+
+## Playlists
+
+Create with `Cmd+N`; new playlist appears in the sidebar with a generic name, ready to rename. Add tracks by dragging from any list, right-clicking → "Add to playlist", or `Alt+J` → "Add to playlist". Reorder by dragging rows within the playlist view; remove with `Delete` on the focused row.
+
+Collaborative playlists (right-click the playlist → "Collaborative playlist") let any invitee add/remove tracks. Useful for shared situations (party playlist, road trip) but means edits are immediate and visible to all collaborators — confirm before mass-editing a collaborative playlist.
+
+## Device output
+
+The Connect icon (looks like a speaker, bottom-right of the player bar) opens the device picker — Spotify can play to this Mac, AirPlay speakers, other devices signed into the same account (phone, web player, other Mac), or supported smart speakers. Switching device hands off playback mid-song without interruption.
+
+The user's current playback device is shown in green at the bottom of the player bar. If the user says "play X on the speaker", verify which device is selected — playing to the wrong device is annoying but recoverable; playing loudly to the office speaker when the user wanted private playback is socially expensive.
+
+## The play and like boundaries
+
+Pressing play on any track or starting a playlist replaces the current playback queue with the new context. This is silent and immediate — no confirmation. If the user has a carefully-curated queue going, starting "Daily Mix 1" wipes it. Use `Cmd+Return` (play next) or the queue-add to preserve the existing context.
+
+Liking a song (`Alt+Shift+B` or the heart icon) adds it to Liked Songs, which is also a Smart-playlist source feeding Discover Weekly and recommendations. Liking on the user's behalf shapes their future recommendations — only like songs the user has explicitly said they want saved.
+
+## Verification
+
+After playing, the player bar shows the track title, artist, and elapsed time advancing. After search, the result pane updates with categorized tabs. After adding to playlist, the playlist's track count in the sidebar increments. If playback doesn't start: a wrong device may be selected (check Connect), the user's session may have been taken over by another device (Spotify only allows one active stream per Free account), or the track may be unavailable in the user's region.
+
+## Sources
+
+Spotify's official keyboard shortcuts: https://support.spotify.com/us/article/keyboard-shortcuts/. The in-app `Cmd+/` overlay is the most current reference and includes the latest additions.

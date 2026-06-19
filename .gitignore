@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.DS_Store
+DRIFT.md
+
+# examples/expense_report: downloaded fixtures + run output (CWD-relative)
+examples/expense_report/fixtures/.cache/
+examples/expense_report/fixtures/expense_report/
+examples/expense_report/runs/

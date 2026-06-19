@@ -1,0 +1,140 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "holo-desktop-cli"
+version = "0.0.1"
+description = "Vision-language agent that drives real macOS, Linux, and Windows apps. Powered by Holo3; thin client over the hai-agent-runtime agent API."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+authors = [{ name = "H Company", email = "contact@hcompany.ai" }]
+keywords = ["agent", "vlm", "holo3", "desktop-automation", "computer-use", "mcp", "acp", "h-company"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    # Agent-API wire contract (Pydantic specs + agp_types) for talking to the closed
+    # hai-agent-runtime binary; the wheel vendors agent_interface + agp_types as the only source of the spec types.
+    "hai-agent-api>=0.1.15",
+    # CLI / serve (A2A) / acp / mcp adapter surface.
+    "a2a-sdk[http-server]>=1.0.3",
+    "agent-client-protocol>=0.10",
+    "httpx>=0.28.1",
+    "mcp>=1.10",
+    "pydantic>=2.11.4",
+    "pydantic-settings>=2.6",
+    # Global double-Esc kill switch (holo run embedded listener + holo guard).
+    "pynput>=1.7",
+    # Self-healing macOS Esc tap re-arms the listener when macOS disables it under heavy input load.
+    "pyobjc-framework-quartz>=10.0; sys_platform == 'darwin'",
+    "python-dotenv>=0.21",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "starlette>=0.49.1",
+    "tyro>=0.8",
+    "uvicorn>=0.31.1",
+]
+
+[project.urls]
+Homepage = "https://hcompany.ai"
+Repository = "https://github.com/hcompai/holo-desktop-cli"
+Issues = "https://github.com/hcompai/holo-desktop-cli/issues"
+Documentation = "https://hub.hcompany.ai/quickstart"
+Changelog = "https://github.com/hcompai/holo-desktop-cli/blob/main/CHANGELOG.md"
+"Holo3-35B-A3B" = "https://huggingface.co/Hcompany/Holo3-35B-A3B"
+"Holo3-122B-A10B" = "https://huggingface.co/Hcompany/Holo3-122B-A10B"
+
+[project.scripts]
+holo = "holo_desktop.cli:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pillow>=11.0",
+    "pre-commit>=4.0",
+    # Live e2e harness (tests/e2e): synthetic input/screenshots + macOS AX evaluator reads.
+    "pyautogui>=0.9.54",
+    "pyobjc-framework-applicationservices>=10.0; sys_platform == 'darwin'",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.15.13",  # keep in sync with .pre-commit-config.yaml so make check matches the hook
+    "types-pyyaml>=6.0",
+]
+
+# Python examples are workspace members: installable + testable against this
+# checkout, but never packaged into the published holo-desktop-cli wheel.
+[tool.uv.workspace]
+members = ["examples/expense_report"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/holo_desktop"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/holo_desktop", "README.md", "LICENSE", "pyproject.toml"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["src"]
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",  # line too long — formatter handles long strings; long Field descriptions are deliberate.
+    "B008",  # function call in default arg — Pydantic `Field(...)` is the canonical pattern.
+    "B904",  # raise from — too noisy for boundary translations.
+    "SIM108",# ternary over if-else — not always more readable.
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+ignore_missing_imports = true       # a2a.* has no stubs
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+disallow_untyped_defs = false       # start permissive; tighten in follow-ups
+check_untyped_defs = true
+strict_equality = true
+no_implicit_reexport = false
+
+[[tool.mypy.overrides]]
+module = ["a2a.*"]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+pythonpath = ["scripts"]
+
+[tool.coverage.run]
+source = ["holo_desktop"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
