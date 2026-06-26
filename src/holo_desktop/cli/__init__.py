@@ -11,6 +11,7 @@ from holo_desktop.cli.doctor import doctor
 from holo_desktop.cli.guard import guard
 from holo_desktop.cli.install import install
 from holo_desktop.cli.login import login
+from holo_desktop.cli.retina_proxy import retina_proxy
 from holo_desktop.cli.run import run
 from holo_desktop.cli.serve import serve
 from holo_desktop.cli.stop import stop
@@ -58,5 +59,6 @@ def main() -> None:
             "login": login,
             "whoami": whoami,
             "doctor": doctor,
+            "retina-proxy": retina_proxy,
         },
     )
