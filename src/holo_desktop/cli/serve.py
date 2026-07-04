@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -47,9 +48,16 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from hai_agents.local import LocalRuntime
+
 from holo_desktop import __version__
 from holo_desktop.agent_client.client import AgentApiClient
-from holo_desktop.agent_client.launcher import LOOPBACK_HOST, AgentDaemon, SpawnConfig, ensure_running, port_from_env
+from holo_desktop.agent_client.sdk_runtime import (
+    LOOPBACK_HOST,
+    SpawnConfig,
+    ensure_local_runtime,
+    port_from_env,
+)
 from holo_desktop.agent_client.session_runner import (
     DEFAULT_INTERACTIVE_IDLE_TIMEOUT_S,
     SUCCESSFUL_TURN_STATUSES,
@@ -135,12 +143,14 @@ class HoloExecutor(AgentExecutor):
         self._fake = fake
         self._settings = settings
         self._sessions: OrderedDict[str, Session] = OrderedDict()
-        self._daemon: AgentDaemon | None = None
+        self._runtime: LocalRuntime | None = None
         self._client: AgentApiClient | None = None
 
     async def startup(self) -> None:
         # Resolved at startup (after load_holo_env) so HAI_AGENT_RUNTIME_PORT from env counts.
-        self._daemon = await ensure_running(
+        # ensure_local_runtime may download the runtime on first run; keep that off the event loop.
+        self._runtime = await asyncio.to_thread(
+            ensure_local_runtime,
             SpawnConfig(
                 port=port_from_env(settings=self._settings),
                 model=self._model,
@@ -149,13 +159,14 @@ class HoloExecutor(AgentExecutor):
             ),
             settings=self._settings,
         )
-        self._client = AgentApiClient(self._daemon.base_url, self._daemon.token)
+        self._client = AgentApiClient(self._runtime)
 
     async def shutdown(self) -> None:
         if self._client is not None:
             await self._client.aclose()
-        if self._daemon is not None:
-            await self._daemon.aclose()
+        # Stop the runtime only if this server spawned it; attached runtimes belong to their spawner.
+        if self._runtime is not None and self._runtime.owned:
+            await asyncio.to_thread(self._runtime.shutdown)
 
     @property
     def _api(self) -> AgentApiClient:

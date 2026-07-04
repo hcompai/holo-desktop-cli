@@ -11,21 +11,16 @@ from typing import TYPE_CHECKING, Annotated
 
 import httpx
 import tyro
+from hai_agents.local import LocalRuntimeError
 
 if TYPE_CHECKING:
     from rich.console import Console
 
     from holo_desktop.killswitch.listener import StopListener
 
-from holo_desktop.agent_client import runtime_install
-from holo_desktop.agent_client.launcher import (
-    AGENT_API_DEFAULT_PORT,
-    PORT_ENV,
-    log_tail_suggests_permissions,
-    port_from_env,
-    text_suggests_permissions,
-)
-from holo_desktop.settings import HoloSettings
+from holo_desktop.agent_client import permissions
+from holo_desktop.agent_client.sdk_runtime import port_from_env
+from holo_desktop.settings import AGENT_API_DEFAULT_PORT, PORT_ENV, HoloSettings
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +75,7 @@ def run(
     # Per-request HTTP chatter is implementation detail, not user output.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     if quiet:
-        logging.getLogger("holo_desktop.agent_client.launcher").setLevel(logging.WARNING)
+        logging.getLogger("hai_agents.local").setLevel(logging.WARNING)
 
     settings = bootstrap_interactive(base_url=base_url, fake=fake)
 
@@ -108,7 +103,7 @@ def run(
         sys.platform == "darwin"
         and not fake
         and shutil.which("hai-agent-runtime") is None
-        and runtime_install.first_run_pending(runtime_install.PINNED_RUNTIME_VERSION)
+        and permissions.first_run_pending()
     )
     if walkthrough_pending and not quiet:
         err.print(
@@ -124,8 +119,8 @@ def run(
             )
         )
 
-    def attempt() -> tuple[str | None, str | None, str | None, bool]:
-        """One full session; the trailing bool reports whether this run spawned the runtime."""
+    def attempt() -> tuple[str | None, str | None, str | None, bool, Path | None]:
+        """One full session; reports whether this run spawned the runtime, and its stderr log path."""
         try:
             return asyncio.run(
                 _drive(
@@ -157,10 +152,10 @@ def run(
         enabled=not no_kill_switch and not fake and is_interactive_tty(), quiet=quiet, err=err
     )
     try:
-        answer, status, error, spawned = attempt()
+        answer, status, error, spawned, log_path = attempt()
         # The runtime may surface a TCC failure only via the session error, not its stderr log: check both.
-        permission_shaped = log_tail_suggests_permissions(resolved_port) or (
-            error is not None and text_suggests_permissions(error)
+        permission_shaped = permissions.log_tail_suggests_permissions(log_path) or (
+            error is not None and permissions.text_suggests_permissions(error)
         )
         if walkthrough_pending and status == "failed" and permission_shaped:
             if spawned:
@@ -168,16 +163,16 @@ def run(
                     "[yellow]→[/yellow] [dim]permission grants only apply after a runtime restart; "
                     "restarting the runtime and retrying once[/dim]"
                 )
-                answer, status, error, spawned = attempt()
+                answer, status, error, spawned, log_path = attempt()
             else:
-                # Attached runtime: aclose() was a no-op, so a retry reuses the same process and grants stay unlatched.
+                # Attached runtime: shutdown was a no-op, so a retry reuses the same process and grants stay unlatched.
                 err.print(
                     f"[yellow]→[/yellow] [dim]permission grants only apply after a runtime restart, but the "
                     f"runtime on port {resolved_port} was started by another Holo process (e.g. holo serve or "
                     "holo mcp). Restart that process so the grants latch, or pass --port to spawn a fresh "
                     "runtime here.[/dim]"
                 )
-    except (RuntimeError, httpx.HTTPError) as exc:
+    except (RuntimeError, LocalRuntimeError, httpx.HTTPError) as exc:
         die(type(exc).__name__, str(exc))
         return
     finally:
@@ -191,7 +186,7 @@ def run(
     if status in ("interrupted", "timed_out"):
         die(status, error or f"session {status}")
     if walkthrough_pending:
-        runtime_install.mark_first_run_complete(runtime_install.PINNED_RUNTIME_VERSION)
+        permissions.mark_first_run_complete()
     if answer:
         if quiet:
             out.print(Text(answer))
@@ -232,8 +227,8 @@ async def _drive(
     profile: bool,
     expand: bool,
     settings: HoloSettings,
-) -> tuple[str | None, str | None, str | None, bool]:
-    """Spawn/attach the binary, run one turn, return (answer, status, error, spawned)."""
+) -> tuple[str | None, str | None, str | None, bool, Path | None]:
+    """Spawn/attach the binary, run one turn, return (answer, status, error, spawned, log_path)."""
     from agp_types import TrajectoryEvent
     from rich.console import Console
 
@@ -243,19 +238,21 @@ async def _drive(
         find_session_event_log,
         render_step_timings,
     )
-    from holo_desktop.agent_client.launcher import SpawnConfig, ensure_running
+    from holo_desktop.agent_client.sdk_runtime import SpawnConfig, ensure_local_runtime
     from holo_desktop.agent_client.session_runner import Session, run_turn
     from holo_desktop.terminal.feed import LiveFeed
 
     console = Console(stderr=True)
 
-    daemon = await ensure_running(
+    # ensure_local_runtime may download the runtime on first run; keep that off the event loop.
+    runtime = await asyncio.to_thread(
+        ensure_local_runtime,
         SpawnConfig(port=port, model=model, base_url=base_url, fake=fake, fast=fast, runs_dir=runs_dir),
         settings=settings,
     )
-    spawned = daemon.proc is not None
+    spawned = runtime.owned
     try:
-        async with AgentApiClient(daemon.base_url, daemon.token) as client:
+        async with AgentApiClient(runtime) as client:
             session = Session()
             feed = None if quiet else LiveFeed(console, expand=expand)
 
@@ -279,9 +276,12 @@ async def _drive(
                     # Render even on failure: partial timings are still useful.
                     render_step_timings(timing, console)
             status = outcome.status.value if outcome.status is not None else None
-            return outcome.answer, status, outcome.error, spawned
+            return outcome.answer, status, outcome.error, spawned, runtime.log_path
     finally:
-        await daemon.aclose()
+        # Same semantics as the old daemon.aclose(): stop the runtime only if this run spawned it,
+        # which is also what makes the one-shot TCC retry respawn a fresh process.
+        if runtime.owned:
+            await asyncio.to_thread(runtime.shutdown)
 
 
 def _arm_kill_switch(*, enabled: bool, quiet: bool, err: Console) -> StopListener | None:
