@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 from holo_desktop import customization
-from holo_desktop.agent_client.launcher import PORT_ENV
 from holo_desktop.cli import bootstrap
+from holo_desktop.settings import PORT_ENV
 
 # `holo_desktop.cli.__init__` re-exports the `mcp` command function under the
 # same name as the submodule; go through importlib to get the module itself.

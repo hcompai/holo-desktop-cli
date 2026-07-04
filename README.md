@@ -85,23 +85,25 @@ The trigger and the lever are decoupled through a single one-line file, `~/.holo
 - **Reading it (the lever):** every turn records its own `started_at` and, while running, polls the file ~4×/s. It acts **only if the file's timestamp is newer than its `started_at`** — then it pauses, then cancels at the next action boundary.
 - **Clearing it:** the file is *never deleted*. It's cleared by time — the next turn starts later, so a leftover request is automatically stale and can't kill it. This is also why a `holo stop` fired *before* a run begins is ignored: nothing was running to stop.
 
-`holo stop --force` is the exception to the step-bounded model: it reads the runtime's pid file (`~/.holo/agent-pid-<port>`) and SIGKILLs the process directly, so it doesn't wait for an action boundary.
+`holo stop --force` is the exception to the step-bounded model: it discovers the runtime through the hai-agents SDK (`LocalRuntime.attach(...).force_kill()`) and SIGKILLs the process directly, so it doesn't wait for an action boundary. For one release it also honours pre-SDK pid files (`~/.holo/agent-pid-<port>`) so an upgrade mid-session can still be stopped.
 
 ## Use from Python
 
-`holo_desktop.agent_client` is the same client every CLI surface is built on: it spawns (or attaches to) the `hai-agent-runtime` binary on loopback and drives sessions over the agent API.
+`holo_desktop.agent_client` is the same client every CLI surface is built on: it spawns (or attaches to) the `hai-agent-runtime` binary on loopback via the hai-agents local runtime and drives sessions over the agent API.
 
 ```python
 import asyncio
 
-from holo_desktop.agent_client import AgentApiClient, SpawnConfig, ensure_running
+from holo_desktop.agent_client import AgentApiClient, SpawnConfig, ensure_local_runtime
 from holo_desktop.agent_client.requests import build_session_request
+from holo_desktop.settings import load_holo_settings
 
 
 async def main() -> None:
-    daemon = await ensure_running(SpawnConfig(port=18795))
+    settings = load_holo_settings()
+    runtime = await asyncio.to_thread(ensure_local_runtime, SpawnConfig(port=18795), settings=settings)
     try:
-        async with AgentApiClient(daemon.base_url, daemon.token) as client:
+        async with AgentApiClient(runtime) as client:
             request = build_session_request(
                 task="Tell me how many unread emails I have", max_steps=None, max_time_s=None
             )
@@ -110,7 +112,8 @@ async def main() -> None:
                 print(event.type)
             print(stream.answer)
     finally:
-        await daemon.aclose()
+        if runtime.owned:
+            await asyncio.to_thread(runtime.shutdown)
 
 
 asyncio.run(main())
