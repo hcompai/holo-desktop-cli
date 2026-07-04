@@ -2,26 +2,19 @@
 
 from __future__ import annotations
 
-import asyncio
 import platform
 import shutil
 
+from hai_agents.local import LocalRuntime
 from pydantic import BaseModel
 
 from holo_desktop import customization
-from holo_desktop.agent_client import launcher, runtime_install
-from holo_desktop.agent_client.launcher import (
-    AUTH_TOKEN_ENV,
-    LOOPBACK_HOST,
-    log_tail_suggests_permissions,
-    port_from_env,
-    probe_health,
-    token_file_path,
-)
+from holo_desktop.agent_client import permissions
+from holo_desktop.agent_client.sdk_runtime import port_from_env
 from holo_desktop.cli import bootstrap
 from holo_desktop.cli.bootstrap import load_holo_env, read_user_env_key
 from holo_desktop.cli.profile import load_profile
-from holo_desktop.settings import HoloSettings, load_holo_settings
+from holo_desktop.settings import AUTH_TOKEN_ENV, HoloSettings, load_holo_settings
 
 ACCESSIBILITY_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 SCREEN_RECORDING_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
@@ -38,16 +31,11 @@ def check_binary() -> CheckResult:
     on_path = shutil.which("hai-agent-runtime")
     if on_path:
         return CheckResult(name="binary", ok=True, detail=f"on PATH: {on_path}")
-    managed = runtime_install.installed_binary(runtime_install.PINNED_RUNTIME_VERSION)
-    if managed is not None:
-        return CheckResult(
-            name="binary", ok=True, detail=f"managed install (v{runtime_install.PINNED_RUNTIME_VERSION}): {managed}"
-        )
+    # Install/version pinning is SDK-owned; there is no local manifest to inspect anymore.
     return CheckResult(
         name="binary",
-        ok=False,
-        detail="hai-agent-runtime not found (not on PATH, no managed install)",
-        fix="any `holo run` downloads it automatically; or put hai-agent-runtime on PATH",
+        ok=True,
+        detail="managed by the hai-agents SDK (downloads on the first run)",
     )
 
 
@@ -71,27 +59,38 @@ def check_login(settings: HoloSettings) -> CheckResult:
 
 def check_agent_api(settings: HoloSettings) -> CheckResult:
     port = port_from_env(settings=settings)
-    probe = asyncio.run(probe_health(f"http://{LOOPBACK_HOST}:{port}"))
-    if probe is None:
-        return CheckResult(name="agent-api", ok=True, detail=f"no server on port {port} (spawns on demand)")
-    version = probe.version or "unknown version"
-    if version != runtime_install.PINNED_RUNTIME_VERSION and probe.version is not None:
-        version = f"{version} (client pins {runtime_install.PINNED_RUNTIME_VERSION})"
-    has_token = bool(settings.runtime.api_token) or token_file_path(port).is_file()
-    if not has_token:
+    runtime = LocalRuntime.attach(port=port)
+    if runtime is None:
+        return CheckResult(name="agent-api", ok=True, detail=f"no runtime on port {port} (spawns on demand)")
+    try:
+        runtime.health()
+    except Exception as exc:
         return CheckResult(
             name="agent-api",
             ok=False,
-            detail=f"server running on port {port} ({version}) but no credentials to attach",
+            detail=f"runtime on port {port} (pid {runtime.pid}) failed /health: {exc}",
+            fix="run `holo stop --force`, then re-run your command to spawn a fresh runtime",
+        )
+    version = runtime.version or "unknown version"
+    if not runtime.api_key:
+        return CheckResult(
+            name="agent-api",
+            ok=False,
+            detail=f"runtime on port {port} ({version}) but no credentials to attach",
             fix=f"export {AUTH_TOKEN_ENV}, or stop that server so holo can spawn its own",
         )
-    return CheckResult(name="agent-api", ok=True, detail=f"server running on port {port} ({version}), token available")
+    return CheckResult(
+        name="agent-api", ok=True, detail=f"runtime on port {port} ({version}), credentials available"
+    )
 
 
-def check_holo_dir() -> CheckResult:
+def check_holo_dir(settings: HoloSettings) -> CheckResult:
     skills = sorted(customization.SKILLS_DIR.glob("*/SKILL.md"))
-    logs = sorted(launcher.LOG_DIR.glob("hai-agent-runtime-*.log")) if launcher.LOG_DIR.is_dir() else []
-    log_note = f"; latest runtime log: {logs[-1]}" if logs else ""
+    # Only an attached runtime can point us at the SDK-owned log location; otherwise drop the note.
+    runtime = LocalRuntime.attach(port=port_from_env(settings=settings))
+    log_note = ""
+    if runtime is not None and runtime.log_path is not None:
+        log_note = f"; runtime log: {runtime.log_path}"
     if not skills:
         return CheckResult(
             name="holo-dir",
@@ -108,14 +107,14 @@ def permissions_guidance_needed(port: int) -> bool:
     if platform.system() != "Darwin":
         return False
     # A PATH binary (dev setup) never gets a first-run marker, so only the managed install counts as pending.
-    managed_first_run_pending = shutil.which("hai-agent-runtime") is None and runtime_install.first_run_pending(
-        runtime_install.PINNED_RUNTIME_VERSION
-    )
-    return managed_first_run_pending or log_tail_suggests_permissions(port)
+    managed_first_run_pending = shutil.which("hai-agent-runtime") is None and permissions.first_run_pending()
+    runtime = LocalRuntime.attach(port=port)
+    log_path = runtime.log_path if runtime is not None else None
+    return managed_first_run_pending or permissions.log_tail_suggests_permissions(log_path)
 
 
 def run_checks(settings: HoloSettings) -> list[CheckResult]:
-    return [check_binary(), check_login(settings), check_agent_api(settings), check_holo_dir()]
+    return [check_binary(), check_login(settings), check_agent_api(settings), check_holo_dir(settings)]
 
 
 def doctor() -> None:
