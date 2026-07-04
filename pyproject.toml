@@ -27,6 +27,8 @@ dependencies = [
     # Agent-API wire contract (Pydantic specs + agp_types) for talking to the closed
     # hai-agent-runtime binary; the wheel vendors agent_interface + agp_types as the only source of the spec types.
     "hai-agent-api>=0.1.15",
+    # SDK local mode (plan 002): owns runtime download/spawn/auth/discovery; Holo delegates lifecycle to it.
+    "hai-agents[local]>=0.1",
     # CLI / serve (A2A) / acp / mcp adapter surface.
     "a2a-sdk[http-server]>=1.0.3",
     "agent-client-protocol>=0.10",
@@ -77,6 +79,12 @@ dev = [
 # checkout, but never packaged into the published holo-desktop-cli wheel.
 [tool.uv.workspace]
 members = ["examples/expense_report"]
+
+[tool.uv.sources]
+# SHIP-GATE: replace with the published hai-agents[local] version before merge.
+# Dev-time override onto the plan-002 implementation worktree; the [local] extra
+# is empty today, so the editable path install satisfies it as-is.
+hai-agents = { path = "/Users/charlie.masters/.config/superpowers/worktrees/hai-agents-python/claude-sdk-local-mode", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/holo_desktop"]
