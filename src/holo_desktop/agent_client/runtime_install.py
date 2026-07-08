@@ -205,6 +205,17 @@ def install_runtime(artifact: RuntimeArtifact) -> Path:
     return installed
 
 
+def ensure_managed_runtime(*, settings: RuntimeInstallSettings, assume_yes: bool = False) -> Path:
+    """Return the pinned managed runtime, downloading it when absent and approved."""
+    existing = installed_binary(PINNED_RUNTIME_VERSION)
+    if existing is not None:
+        return existing
+    artifact = pinned_artifact(settings=settings)
+    if not assume_yes and not confirm_download():
+        raise RuntimeError("hai-agent-runtime download declined")
+    return install_runtime(artifact)
+
+
 def _download_to(url: str, dest: Path) -> str:
     """Stream `url` into `dest`; returns the sha256 hex digest of the bytes written."""
     _require_secure_url(url)

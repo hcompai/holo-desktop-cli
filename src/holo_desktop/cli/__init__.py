@@ -13,6 +13,7 @@ from holo_desktop.cli.install import install
 from holo_desktop.cli.login import login
 from holo_desktop.cli.run import run
 from holo_desktop.cli.serve import serve
+from holo_desktop.cli.setup import setup
 from holo_desktop.cli.stop import stop
 from holo_desktop.cli.whoami import whoami
 
@@ -55,6 +56,7 @@ def main() -> None:
             "mcp": mcp,
             "acp": acp,
             "install": install,
+            "setup": setup,
             "login": login,
             "whoami": whoami,
             "doctor": doctor,
