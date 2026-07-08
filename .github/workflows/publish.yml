@@ -106,13 +106,56 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: |
+            dist/*
+            install/install.sh
+            install/install.ps1
+            install/manifest.json
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
+
+  publish-installer-cdn:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      INSTALLER_ASSETS_BUCKET: hcompany-holo-desktop-installer-assets
+      INSTALLER_BASE_URL: https://install.hcompany.ai
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-west-2
+          role-to-assume: arn:aws:iam::676206947389:role/HoloDesktopCliInstallerReleaseRole
+      - name: Upload installer assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws s3 cp install/install.sh "s3://${INSTALLER_ASSETS_BUCKET}/install.sh" \
+            --content-type text/x-shellscript \
+            --cache-control "public, max-age=300"
+          aws s3 cp install/install.ps1 "s3://${INSTALLER_ASSETS_BUCKET}/install.ps1" \
+            --content-type text/plain \
+            --cache-control "public, max-age=300"
+          aws s3 cp install/manifest.json "s3://${INSTALLER_ASSETS_BUCKET}/install/manifest.json" \
+            --content-type application/json \
+            --cache-control "public, max-age=300"
+      - name: Verify CDN endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | head -n 5
+          curl -fsSL "${INSTALLER_BASE_URL}/install.ps1" | head -n 5
+          curl -fsSL "${INSTALLER_BASE_URL}/install/manifest.json" | python -m json.tool >/dev/null

@@ -27,19 +27,28 @@ Point it at the hosted [Holo3](https://huggingface.co/Hcompany/Holo3-35B-A3B) mo
 
 ## Quickstart
 
-`holo-desktop-cli` is not (yet) on PyPI; run it from a checkout:
+Install Holo with the consumer installer:
 
 ```bash
-git clone https://github.com/hcompai/holo-desktop-cli
-cd holo-desktop-cli && uv sync
-uv run holo run "Catch me up on Slack"
+curl -fsSL https://install.hcompany.ai/install.sh | bash
+holo login
+holo run "Open Calculator and compute 2+2"
+```
+
+On Windows x86_64:
+
+```powershell
+irm https://install.hcompany.ai/install.ps1 | iex
+holo login
+holo run "Open Calculator and compute 2+2"
 ```
 
 On first run:
 
-1. The `hai-agent-runtime` binary downloads itself to `~/.holo/runtime/` (sha256-verified). Developers can skip this by putting `hai-agent-runtime` (or a wrapper script) on `PATH`.
-2. Your browser opens to sign in at [portal.hcompany.ai](https://portal.hcompany.ai). Skip with `--base-url` for a local model.
-3. macOS only: grant the agent runtime *Accessibility* and *Screen Recording* in *System Settings → Privacy & Security* when prompted.
+1. The installer sets up a private Holo toolchain under `~/.holo/` and exposes `holo` on your shell `PATH`.
+2. The `hai-agent-runtime` binary downloads itself to `~/.holo/runtime/` (sha256-verified). Developers can skip this by putting `hai-agent-runtime` (or a wrapper script) on `PATH`.
+3. Your browser opens to sign in at [portal.hcompany.ai](https://portal.hcompany.ai). Skip with `--base-url` for a local model.
+4. macOS only: grant the agent runtime *Accessibility* and *Screen Recording* in *System Settings → Privacy & Security* when prompted.
 
 ## Four ways to use Holo
 
@@ -184,7 +193,15 @@ All dependencies resolve from PyPI (the agent-API wire types come from `hai-agen
 ```bash
 git clone https://github.com/hcompai/holo-desktop-cli && cd holo-desktop-cli
 make setup
+uv run holo run "Open Calculator and compute 2+2"
 make check   # ruff + mypy + pytest
+```
+
+If you want a global command while developing, install the checkout in editable tool mode:
+
+```bash
+make install-dev
+holo --help
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).

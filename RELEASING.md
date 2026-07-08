@@ -42,9 +42,35 @@ The workflow then:
 1. Builds wheel + sdist with `uv build`.
 2. Asserts the git tag matches `project.version` in `pyproject.toml` (cheap safety net).
 3. Publishes to PyPI via OIDC (gated by the `release` environment). Sigstore [attestations](https://docs.pypi.org/attestations/) are generated automatically.
-4. Creates a GitHub Release with auto-generated notes and attaches the artifacts.
+4. Creates a GitHub Release with auto-generated notes and attaches the Python artifacts plus installer assets.
 
 Don't forget to land a `CHANGELOG.md` entry as part of the version-bump commit.
+
+## Installer assets
+
+Every GitHub Release includes:
+
+- `install.sh`
+- `install.ps1`
+- `manifest.json`
+
+The installer uses the `holo-desktop-cli` PyPI version declared in `install/manifest.json`, plus the manifest-pinned `uv` artifacts and SHA256 values. The public installer CDN must update only after PyPI publish succeeds; otherwise the public installer could point users at a package version that is not installable yet.
+
+After `publish-pypi` succeeds, the `release` job creates the GitHub Release and the `publish-installer-cdn` job uploads:
+
+- `install/install.sh` -> `s3://hcompany-holo-desktop-installer-assets/install.sh`
+- `install/install.ps1` -> `s3://hcompany-holo-desktop-installer-assets/install.ps1`
+- `install/manifest.json` -> `s3://hcompany-holo-desktop-installer-assets/install/manifest.json`
+
+Verify:
+
+```bash
+curl -fsSL https://install.holo.ai/install.sh | head
+curl -fsSL https://install.holo.ai/install.ps1 | head
+curl -fsSL https://install.holo.ai/install/manifest.json | python -m json.tool
+```
+
+Rollback is a new patch release that restores the previous manifest and installer scripts. If a same-version emergency rollback is required, manually upload the previous three assets to the same S3 keys and verify the CDN endpoints after the 300-second cache window.
 
 ## Dry-run on TestPyPI
 
