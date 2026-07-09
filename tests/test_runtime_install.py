@@ -27,11 +27,12 @@ from holo_desktop.agent_client.runtime_install import (
     DOWNLOAD_SHA256_ENV,
     DOWNLOAD_URL_ENV,
     PINNED_RUNTIME_VERSION,
+    RuntimeArtifact,
     install_runtime,
     installed_binary,
     pinned_artifact,
 )
-from holo_desktop.settings import load_holo_settings
+from holo_desktop.settings import RuntimeInstallSettings, load_holo_settings
 
 FAKE_BINARY = b"#!/bin/sh\necho fake-runtime\n"
 
@@ -212,6 +213,48 @@ def test_resolve_downloads_when_nothing_is_installed(
     assert command == [str(installed_binary(PINNED_RUNTIME_VERSION))]
     expected = runtime_dir / PINNED_RUNTIME_VERSION
     assert Path(command[0]).is_relative_to(expected)
+
+
+def test_ensure_managed_runtime_uses_existing_install(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    existing = tmp_path / "hai-agent-runtime"
+    existing.write_text("")
+    monkeypatch.setattr(runtime_install, "installed_binary", lambda version: existing)
+
+    called = False
+
+    def fake_install(_artifact: RuntimeArtifact) -> Path:
+        nonlocal called
+        called = True
+        return tmp_path / "unexpected"
+
+    monkeypatch.setattr(runtime_install, "install_runtime", fake_install)
+
+    assert runtime_install.ensure_managed_runtime(settings=RuntimeInstallSettings(), assume_yes=True) == existing
+    assert called is False
+
+
+def test_ensure_managed_runtime_downloads_when_assume_yes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    artifact = RuntimeArtifact(url="https://example.test/runtime.zip", sha256="1" * 64)
+    installed = tmp_path / "managed" / "hai-agent-runtime"
+    monkeypatch.setattr(runtime_install, "installed_binary", lambda version: None)
+    monkeypatch.setattr(runtime_install, "pinned_artifact", lambda *, settings: artifact)
+
+    def fail_prompt() -> bool:
+        raise AssertionError("assume_yes must bypass confirm_download")
+
+    monkeypatch.setattr(runtime_install, "confirm_download", fail_prompt)
+    monkeypatch.setattr(runtime_install, "install_runtime", lambda actual: installed if actual == artifact else None)
+
+    assert runtime_install.ensure_managed_runtime(settings=RuntimeInstallSettings(), assume_yes=True) == installed
+
+
+def test_ensure_managed_runtime_rejects_unimplemented_platform(
+    runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_resolution_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(runtime_install, "platform_key", lambda: "linux-x86_64")
+    with pytest.raises(runtime_install.RuntimeArtifactUnavailable, match="not published"):
+        runtime_install.ensure_managed_runtime(settings=RuntimeInstallSettings(), assume_yes=True)
 
 
 @pytest.mark.parametrize(
