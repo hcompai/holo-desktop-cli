@@ -25,7 +25,7 @@ platform_key() {
   case "$system:$machine" in
     Darwin:arm64) printf 'darwin-arm64' ;;
     Darwin:x86_64) fail "Holo Desktop installer does not support darwin-x86_64 yet because hai-agent-runtime is not published for macOS Intel yet." ;;
-    Linux:x86_64) fail "Holo Desktop installer does not support linux-x86_64 yet because hai-agent-runtime is not published for Linux yet." ;;
+    Linux:x86_64) printf 'linux-x86_64' ;;
     Linux:*) fail "Holo Desktop installer does not support linux-$machine yet because hai-agent-runtime is not published for Linux yet." ;;
     *) fail "Holo Desktop installer does not support $system-$machine yet." ;;
   esac
@@ -75,7 +75,13 @@ PY
 }
 
 append_path_block() {
-  rc_file="$HOME/.zshrc"
+  # Write to the rc file the login shell actually sources: zsh on macOS,
+  # bash on most Linux; fall back to .profile for anything else.
+  case "${SHELL:-}" in
+    */zsh) rc_file="$HOME/.zshrc" ;;
+    */bash) rc_file="$HOME/.bashrc" ;;
+    *) rc_file="$HOME/.profile" ;;
+  esac
   path_line="export PATH=\"$HOLO_HOME/bin:\$PATH\""
   mkdir -p "$(dirname "$rc_file")"
   touch "$rc_file"
@@ -87,15 +93,24 @@ append_path_block() {
   fi
 }
 
+sha256_of() {
+  # sha256sum ships with coreutils on Linux; macOS has shasum instead.
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
 verify_sha256() {
   file="$1"
   expected="$2"
-  actual="$(shasum -a 256 "$file" | awk '{print $1}')"
+  actual="$(sha256_of "$file")"
   [ "$actual" = "$expected" ] || fail "sha256 mismatch for $file: expected $expected, got $actual"
 }
 
 need_cmd curl
-need_cmd shasum
+command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 || fail "missing required command: sha256sum or shasum"
 need_cmd tar
 
 PLATFORM="$(platform_key)"
