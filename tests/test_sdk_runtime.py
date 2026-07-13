@@ -31,9 +31,7 @@ def _capture_spawn(monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
         captured["inherit_env"] = inherit_env
         return _FakeRuntime()
 
-    monkeypatch.setattr(
-        sdk_runtime.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: None)
-    )
+    monkeypatch.setattr(sdk_runtime.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: None))
     monkeypatch.setattr(sdk_runtime.LocalRuntime, "ensure_started", staticmethod(fake_ensure_started))
 
 
@@ -103,8 +101,6 @@ def test_attach_with_explicit_flags_refuses_silent_ignore(monkeypatch: pytest.Mo
 
 def test_attach_without_flags_reuses_the_running_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     runtime = _FakeRuntime()
-    monkeypatch.setattr(
-        sdk_runtime.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: runtime)
-    )
+    monkeypatch.setattr(sdk_runtime.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: runtime))
 
     assert ensure_local_runtime(SpawnConfig(port=18795), settings=load_holo_settings()) is runtime

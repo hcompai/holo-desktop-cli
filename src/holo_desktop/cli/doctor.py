@@ -79,9 +79,7 @@ def check_agent_api(settings: HoloSettings) -> CheckResult:
             detail=f"runtime on port {port} ({version}) but no credentials to attach",
             fix=f"export {AUTH_TOKEN_ENV}, or stop that server so holo can spawn its own",
         )
-    return CheckResult(
-        name="agent-api", ok=True, detail=f"runtime on port {port} ({version}), credentials available"
-    )
+    return CheckResult(name="agent-api", ok=True, detail=f"runtime on port {port} ({version}), credentials available")
 
 
 def check_holo_dir(settings: HoloSettings) -> CheckResult:

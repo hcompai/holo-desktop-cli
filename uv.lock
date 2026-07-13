@@ -620,36 +620,12 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.0.4"
-source = { editable = "/Users/charlie.masters/.config/superpowers/worktrees/hai-agents-python/claude-sdk-local-mode" }
+version = "1.0.6"
+source = { git = "https://github.com/hcompai/hai-agents-python.git?branch=claude%2Fsdk-local-mode#37b9e8034630516813cf9d36e29ca9d27c751985" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.23.0,<0.29.0" },
-    { name = "pydantic", specifier = ">=2.0,<3" },
-    { name = "python-dotenv", marker = "extra == 'all'", specifier = ">=1.2.2,<2" },
-    { name = "python-dotenv", marker = "extra == 'cli'", specifier = ">=1.2.2,<2" },
-    { name = "rich", marker = "extra == 'all'", specifier = ">=13,<16" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=13,<16" },
-    { name = "typer", marker = "extra == 'all'", specifier = ">=0.12,<1" },
-    { name = "typer", marker = "extra == 'cli'", specifier = ">=0.12,<1" },
-    { name = "typing-extensions", specifier = ">=4.6" },
-]
-provides-extras = ["cli", "local", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=9.0.3,<10" },
-    { name = "pytest-asyncio", specifier = ">=1.2,<2" },
-    { name = "python-dotenv", specifier = ">=1.2.2,<2" },
-    { name = "rich", specifier = ">=13,<16" },
-    { name = "ruff", specifier = "==0.15.20" },
-    { name = "typer", specifier = ">=0.12,<1" },
 ]
 
 [[package]]
@@ -694,7 +670,7 @@ requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=1.0.3" },
     { name = "agent-client-protocol", specifier = ">=0.10" },
     { name = "hai-agent-api", specifier = ">=0.1.15" },
-    { name = "hai-agents", extras = ["local"], editable = "/Users/charlie.masters/.config/superpowers/worktrees/hai-agents-python/claude-sdk-local-mode" },
+    { name = "hai-agents", extras = ["local"], git = "https://github.com/hcompai/hai-agents-python.git?branch=claude%2Fsdk-local-mode" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.11.4" },

@@ -39,6 +39,7 @@ from a2a.types import (
     TaskStatusUpdateEvent,
 )
 from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents.local import LocalRuntime
 from pydantic import BaseModel, ConfigDict
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -47,8 +48,6 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
-
-from hai_agents.local import LocalRuntime
 
 from holo_desktop import __version__
 from holo_desktop.agent_client.client import AgentApiClient

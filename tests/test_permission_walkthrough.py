@@ -88,9 +88,7 @@ def _run_with_scripted_drive(
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="walkthrough is macOS-only")
-def test_permission_failure_on_first_managed_run_retries_once(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_permission_failure_on_first_managed_run_retries_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     log = tmp_path / "logs" / "hai-agent-runtime.log"
     log.parent.mkdir()
     log.write_text("accessibility not granted", encoding="utf-8")

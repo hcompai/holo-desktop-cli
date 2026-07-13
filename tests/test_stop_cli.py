@@ -22,9 +22,7 @@ stop_module = importlib.import_module("holo_desktop.cli.stop")
 def _isolate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(channel, "STOP_PATH", tmp_path / "stop")
     monkeypatch.setattr(legacy_state, "TOKEN_DIR", tmp_path)
-    monkeypatch.setattr(
-        stop_module.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: None)
-    )
+    monkeypatch.setattr(stop_module.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: None))
 
 
 def test_stop_files_a_fresh_request() -> None:
@@ -37,9 +35,7 @@ def test_stop_files_a_fresh_request() -> None:
 def test_force_kills_the_sdk_discovered_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     kills: list[int] = []
     runtime = SimpleNamespace(pid=4242, force_kill=lambda: kills.append(4242))
-    monkeypatch.setattr(
-        stop_module.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: runtime)
-    )
+    monkeypatch.setattr(stop_module.LocalRuntime, "attach", staticmethod(lambda *, port=None, cache_dir=None: runtime))
 
     stop(force=True, port=9000)
 

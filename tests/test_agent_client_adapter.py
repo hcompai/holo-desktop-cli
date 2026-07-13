@@ -36,7 +36,7 @@ class _FernishEvent(BaseModel):
     """Shape of an SDK SessionEvent: typed data that Holo must flatten back to dicts."""
 
     type: str = "AgentEvent"
-    timestamp: datetime.datetime = datetime.datetime(2026, 6, 30, tzinfo=datetime.timezone.utc)
+    timestamp: datetime.datetime = datetime.datetime(2026, 6, 30, tzinfo=datetime.UTC)
     data: _TypedAnswerData = _TypedAnswerData()
 
 
@@ -87,9 +87,7 @@ class _FakeSdkClient:
 def wired(monkeypatch: pytest.MonkeyPatch) -> tuple[AgentApiClient, _FakeHandle, _FakeSdkClient]:
     handle = _FakeHandle(events=[_FernishEvent(), _FernishEvent()])
     sdk = _FakeSdkClient(handle)
-    monkeypatch.setattr(
-        client_module, "AsyncClient", SimpleNamespace(local=lambda *, runtime=None, **_ignored: sdk)
-    )
+    monkeypatch.setattr(client_module, "AsyncClient", SimpleNamespace(local=lambda *, runtime=None, **_ignored: sdk))
     return AgentApiClient(SimpleNamespace(base_url="http://127.0.0.1:18795")), handle, sdk
 
 

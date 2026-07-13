@@ -20,8 +20,7 @@ import time
 from pathlib import Path
 
 import pytest
-
-from hai_agents.local import LocalRuntime
+from hai_agents.local import LocalRuntime, RuntimeStartTimeoutError
 
 # Serves 200 on every GET so the SDK's /health handshake succeeds.
 # (Verbatim from tests/test_launcher_token.py.)
@@ -204,7 +203,7 @@ def test_failed_spawn_never_leaks_the_child(tmp_path: Path, monkeypatch: pytest.
     pid_file = tmp_path / "stub.pid"
     monkeypatch.setenv("STUB_PID_FILE", str(pid_file))
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeStartTimeoutError):
         LocalRuntime.ensure_started(
             binary_path=_stub_binary(tmp_path, NEVER_HEALTHY_BINARY),
             cache_dir=tmp_path / "cache",

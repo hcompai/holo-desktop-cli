@@ -82,9 +82,9 @@ members = ["examples/expense_report"]
 
 [tool.uv.sources]
 # SHIP-GATE: replace with the published hai-agents[local] version before merge.
-# Dev-time override onto the plan-002 implementation worktree; the [local] extra
-# is empty today, so the editable path install satisfies it as-is.
-hai-agents = { path = "/Users/charlie.masters/.config/superpowers/worktrees/hai-agents-python/claude-sdk-local-mode", editable = true }
+# Review-time override onto the public plan-002 branch so every CI runner can
+# resolve the same SDK implementation. uv.lock pins the resolved commit.
+hai-agents = { git = "https://github.com/hcompai/hai-agents-python.git", branch = "claude/sdk-local-mode" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/holo_desktop"]

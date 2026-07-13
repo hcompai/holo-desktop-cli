@@ -12,15 +12,11 @@ from hai_agents.local import LocalRuntime
 def stop(
     force: Annotated[
         bool,
-        tyro.conf.arg(
-            help="Also SIGKILL the hai-agent-runtime process: instant, but ends the session outright."
-        ),
+        tyro.conf.arg(help="Also SIGKILL the hai-agent-runtime process: instant, but ends the session outright."),
     ] = False,
     port: Annotated[
         int | None,
-        tyro.conf.arg(
-            help="Runtime port to force-kill; defaults to the default port plus any legacy pid files."
-        ),
+        tyro.conf.arg(help="Runtime port to force-kill; defaults to the default port plus any legacy pid files."),
     ] = None,
 ) -> None:
     """Ask any in-flight Holo turn to pause then cancel (the same effect as the double-Esc kill switch)."""
