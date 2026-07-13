@@ -9,6 +9,7 @@ a concrete fix otherwise.
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -99,7 +100,7 @@ def test_binary_reports_path_install_when_present(holo_home: Path, monkeypatch: 
     monkeypatch.setenv("PATH", str(bin_dir))
     result = _by_name(_run_checks())["binary"]
     assert result.ok
-    assert str(binary) in result.detail
+    assert os.path.normcase(str(binary)) in os.path.normcase(result.detail)
 
 
 def test_missing_credentials_fail_login_check(holo_home: Path) -> None:

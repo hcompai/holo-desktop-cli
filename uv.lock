@@ -621,7 +621,7 @@ wheels = [
 [[package]]
 name = "hai-agents"
 version = "1.0.6"
-source = { git = "https://github.com/hcompai/hai-agents-python.git?branch=claude%2Fsdk-local-mode#208a757378c46c962d95efc6010229c6f312ecb3" }
+source = { git = "https://github.com/hcompai/hai-agents-python.git?branch=claude%2Fsdk-local-mode#f65524a9962f0569232c40af5df660c17b74d6e4" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
