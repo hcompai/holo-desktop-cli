@@ -89,9 +89,11 @@ def test_binary_reports_sdk_managed_when_not_on_path(holo_home: Path, monkeypatc
 
 
 def test_binary_reports_path_install_when_present(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from hai_agents.local.manifest import BINARY_NAME
+
     bin_dir = holo_home / "bin"
     bin_dir.mkdir()
-    binary = bin_dir / "hai-agent-runtime"
+    binary = bin_dir / BINARY_NAME
     binary.write_bytes(b"#!/bin/sh\n")
     binary.chmod(0o755)
     monkeypatch.setenv("PATH", str(bin_dir))

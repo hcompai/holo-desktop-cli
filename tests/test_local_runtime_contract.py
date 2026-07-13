@@ -149,7 +149,7 @@ def _pid_alive(pid: int) -> bool:
 
 def _force_kill(pid: int) -> None:
     if sys.platform == "win32":
-        subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, check=False)
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
         return
     os.kill(pid, 9)
 

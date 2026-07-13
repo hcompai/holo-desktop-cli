@@ -27,7 +27,6 @@ from pathlib import Path
 from statistics import fmean
 from typing import Literal
 
-from holo_desktop.agent_client import runtime_log_path, runtime_log_tail
 from holo_desktop.agent_client.event_timings import StepTiming, StepTimingsSummary, render_step_timings
 from holo_desktop.killswitch import (
     KILL_SWITCH_ARMED_HINT,
@@ -101,6 +100,7 @@ class DemoRun(BaseModel):
     answer: str | None
     verify_checks: list[VerifyCheck] | None
     events_path: str
+    runtime_log_path: str | None
     metrics: Metrics | None
 
 
@@ -144,6 +144,7 @@ def run_demo(
     session_id: str | None = None
     verify_checks: list[VerifyCheck] | None = None
     session_ran = False
+    runtime_log_path: str | None = None
 
     run_id = started_at.strftime("%Y%m%d-%H%M%S")
     events_path = out_root / demo.slug / run_id / "events.jsonl"
@@ -155,6 +156,7 @@ def run_demo(
         if setup_fn is not None:
             setup_fn(demo)
         with Runtime(holo_kwargs.runtime_config()) as runtime:
+            runtime_log_path = str(runtime.log_path) if runtime.log_path is not None else None
             for spec in demo.pre_launch:
                 _launch_one(spec)
             apps.activate_app(demo.focus_bundle_id)
@@ -221,6 +223,7 @@ def run_demo(
         answer=answer,
         verify_checks=verify_checks,
         events_path=str(events_path),
+        runtime_log_path=runtime_log_path,
         metrics=metrics,
     )
     _persist(run, out_root)
@@ -361,9 +364,15 @@ def _print_failure_detail(run: DemoRun) -> None:
     """On a non-ok run, echo the error and the runtime's stderr tail so the cause isn't buried."""
     if run.error:
         print(f"    [error] {run.error}", file=sys.stderr)
-    log_path = runtime_log_path(run.holo_kwargs.port)
+    if run.runtime_log_path is None:
+        return
+    log_path = Path(run.runtime_log_path)
     print(f"    [error] runtime log: {log_path}", file=sys.stderr)
-    tail = runtime_log_tail(run.holo_kwargs.port)
+    try:
+        tail = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"    [runtime] log unreadable: {exc}", file=sys.stderr)
+        return
     for line in tail.splitlines()[-_LOG_TAIL_LINES:]:
         print(f"    [runtime] {line}", file=sys.stderr)
 
@@ -392,5 +401,6 @@ def _dry_run(
         answer=None,
         verify_checks=None,
         events_path="",
+        runtime_log_path=None,
         metrics=None,
     )

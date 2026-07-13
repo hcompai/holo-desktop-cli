@@ -1,7 +1,7 @@
 """Shared test fixtures for the expense-report demo suite.
 
 `fake_agent_server` stands up a minimal agent-API on a free loopback port so
-the real `port_from_env` / `require_api_key` / `ensure_running` wiring runs
+the real `port_from_env` / `require_api_key` / `ensure_local_runtime` wiring runs
 end-to-end without the `hai-agent-runtime` binary. A dropped `settings=` on any
 of those calls then surfaces as a loud `TypeError`.
 """
@@ -52,13 +52,22 @@ class _AgentApiHandler(BaseHTTPRequestHandler):
             self.end_headers()
         elif "/changes" in self.path:
             self._json(_COMPLETED_CHANGES)
+        elif self.path.endswith("/status"):
+            self._json({"status": "completed"})
         else:
             self.send_response(404)
             self.end_headers()
 
     def do_POST(self) -> None:
         if self.path.endswith("/sessions"):
-            self._json({"id": "fake-session"})
+            self._json(
+                {
+                    "id": "fake-session",
+                    "request": {"agent": "holo"},
+                    "status": {"status": "pending"},
+                    "created_at": "2026-07-13T00:00:00Z",
+                }
+            )
         else:
             self.send_response(404)
             self.end_headers()

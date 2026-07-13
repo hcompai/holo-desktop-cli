@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 import tyro
-from holo_desktop.agent_client.launcher import port_from_env
+from holo_desktop.agent_client.sdk_runtime import port_from_env
 from holo_desktop.cli.bootstrap import load_holo_env
 from holo_desktop.settings import load_holo_settings
 
