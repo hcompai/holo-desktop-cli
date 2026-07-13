@@ -12,6 +12,15 @@ uv run holo run "Open hcompany.ai"
 
 `make setup` installs the project (editable) plus dev tools (`ruff`, `mypy`, `pre-commit`) into a local `.venv/`. To also provision the workspace examples (`examples/`), run `make setup-examples` — plain `uv sync` installs only the root package.
 
+If you want to run `holo` from arbitrary directories while developing, install the checkout as an editable uv tool:
+
+```bash
+make install-dev
+holo --help
+```
+
+Use the consumer installers (`install/install.sh` and `install/install.ps1`) for release QA and non-developer installs, not for day-to-day editable development. Remove the editable tool with `make uninstall-dev`.
+
 ## Before pushing
 
 ```bash

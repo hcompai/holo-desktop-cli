@@ -1,4 +1,4 @@
-.PHONY: setup setup-examples lint format typecheck test check ci
+.PHONY: setup setup-examples install-dev uninstall-dev lint format typecheck test check ci
 
 setup:
 	uv sync --all-groups
@@ -8,6 +8,12 @@ setup:
 # package and uninstalls example-only deps from the shared .venv.
 setup-examples:
 	uv sync --all-packages --all-groups
+
+install-dev:
+	uv tool install --editable . --force
+
+uninstall-dev:
+	uv tool uninstall holo-desktop-cli
 
 lint:
 	uv run ruff check .
