@@ -180,7 +180,9 @@ def test_github_step_summary_names_visual_artifacts_without_claiming_inline_imag
 def test_render_artifact_root_writes_flat_review_bundle(tmp_path: Path) -> None:
     root = tmp_path / "run-20260616-100000"
     review_bundle = tmp_path / "review-bundle"
-    _write_task_artifacts(root)
+    task_dir = _write_task_artifacts(root)
+    (task_dir / "runtime.log").write_text("first attempt\n", encoding="utf-8")
+    (task_dir / "runtime-attempt-2.log").write_text("second attempt\n", encoding="utf-8")
 
     render_artifact_root(root, review_bundle=review_bundle)
 
@@ -198,6 +200,8 @@ def test_render_artifact_root_writes_flat_review_bundle(tmp_path: Path) -> None:
         "result.json",
         "stdout.txt",
         "stderr.txt",
+        "runtime.log",
+        "runtime-attempt-2.log",
     } <= names
 
 

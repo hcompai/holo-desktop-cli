@@ -175,6 +175,22 @@ def test_timeout_cleanup_force_kills_after_grace_period() -> None:
     assert message == f"{expected_signal} cleanup exceeded 10s; force-killed"
 
 
+def test_runtime_logs_survive_retried_task_attempts(tmp_path: Path) -> None:
+    artifacts = E2EArtifacts.create(tmp_path / "artifacts")
+    first = tmp_path / "runtime-first.log"
+    second = tmp_path / "runtime-second.log"
+    first.write_text("first attempt timed out\n", encoding="utf-8")
+    second.write_text("second attempt passed\n", encoding="utf-8")
+
+    first_copy = artifacts.copy_runtime_log(first)
+    second_copy = artifacts.copy_runtime_log(second)
+
+    assert first_copy == artifacts.root / "runtime.log"
+    assert second_copy == artifacts.root / "runtime-attempt-2.log"
+    assert first_copy.read_text(encoding="utf-8") == "first attempt timed out\n"
+    assert second_copy.read_text(encoding="utf-8") == "second attempt passed\n"
+
+
 def test_run_and_evaluate_rejects_zero_step_holo_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     event_log_path = tmp_path / "runs" / "events.jsonl"
     event_log_path.parent.mkdir()

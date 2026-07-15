@@ -112,8 +112,13 @@ class E2EArtifacts:
     def copy_runtime_log(self, runtime_log_path: Path | None) -> Path | None:
         if runtime_log_path is None or not runtime_log_path.exists():
             return None
-        shutil.copy2(runtime_log_path, self.runtime_log_path)
-        return self.runtime_log_path
+        destination = self.runtime_log_path
+        attempt = 2
+        while destination.exists():
+            destination = self.root / f"runtime-attempt-{attempt}.log"
+            attempt += 1
+        shutil.copy2(runtime_log_path, destination)
+        return destination
 
     def preserve_final_artifacts(self, prepared_task: PreparedTask) -> None:
         self.final_dir.mkdir(parents=True, exist_ok=True)
