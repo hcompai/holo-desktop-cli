@@ -77,6 +77,30 @@ jobs:
             shard_index: 3
             shard_total: 4
             shard_display: 4/4
+          - os: ubuntu-22.04
+            platform: linux
+            platform_name: Linux
+            shard_index: 0
+            shard_total: 4
+            shard_display: 1/4
+          - os: ubuntu-22.04
+            platform: linux
+            platform_name: Linux
+            shard_index: 1
+            shard_total: 4
+            shard_display: 2/4
+          - os: ubuntu-22.04
+            platform: linux
+            platform_name: Linux
+            shard_index: 2
+            shard_total: 4
+            shard_display: 3/4
+          - os: ubuntu-22.04
+            platform: linux
+            platform_name: Linux
+            shard_index: 3
+            shard_total: 4
+            shard_display: 4/4
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     env:
@@ -87,6 +111,10 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Linux desktop
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/setup-linux-desktop
 
       - name: Configure shard artifact paths
         shell: bash
@@ -354,6 +382,7 @@ jobs:
           path: |
             ${{ env.HOLO_E2E_ARTIFACT_ROOT }}
             ${{ env.HOLO_E2E_REPORT_DIR }}
+            ${{ runner.temp }}/holo-linux-desktop-logs/
           if-no-files-found: warn
           retention-days: 14
 

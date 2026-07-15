@@ -5,16 +5,23 @@ Each task should prefer a deterministic system assertion over answer judging.
 
 ## Current Coverage
 
-The PR-gated full e2e workflow keeps only task fixtures that passed 3/3 on both
-macOS and Windows during initial hosted-runner QA:
+The PR-gated full e2e workflow runs the same task fixtures on macOS, Windows,
+and the Ubuntu 22.04 X11 posture:
 
 - Text input: foreground visible editor witness and type sentinel.
-- File manager basics: create folder, copy file, and protected-file no-op.
+- File manager basics: create folder, copy file, open by double-click, and protected-file no-op.
 - Calculator/UI readback: calculator CI smoke.
 - Browser: local download.
 
-Task fixtures that did not meet the 3/3 bar on both hosted platforms were
-removed from this suite rather than kept as CI coverage.
+Any fixture that does not meet the 3/3 bar on all three hosted platforms should
+be removed from this suite rather than kept as CI coverage.
+
+The Linux mappings are release-candidate coverage until three independent
+hosted workflow runs qualify each task at that same 3/3 bar.
+
+Linux maps the same product contracts to Mousepad, Thunar, KCalc, and Google
+Chrome. Filesystem evaluators stay shared; KCalc uses independent AT-SPI
+readback and the double-click task uses visible-window title inspection.
 
 ## OSWorld-Light Mapping
 

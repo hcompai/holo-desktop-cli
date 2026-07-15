@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 
 from ._domain import EnvironmentRunner
+from .environments.linux import LinuxEnvironmentRunner
 from .environments.macos import MacOSEnvironmentRunner
 from .environments.windows import WindowsEnvironmentRunner
 
@@ -19,9 +20,11 @@ def runner_for_platform(platform: str) -> EnvironmentRunner:
             return MacOSEnvironmentRunner()
         case "win32":
             return WindowsEnvironmentRunner()
+        case "linux":
+            return LinuxEnvironmentRunner()
         case _:
             raise UnsupportedEnvironmentError(
-                f"foreground live e2e tests support macOS and Windows only; got {platform!r}"
+                f"foreground live e2e tests support macOS, Windows, and Linux only; got {platform!r}"
             )
 
 

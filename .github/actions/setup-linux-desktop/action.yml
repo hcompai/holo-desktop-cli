@@ -1,0 +1,130 @@
+name: Setup Linux desktop
+description: Start the deterministic X11 desktop used by Holo live E2E jobs.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Linux desktop dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          at-spi2-core \
+          dbus-x11 \
+          kcalc \
+          libatk-adaptor \
+          mousepad \
+          openbox \
+          picom \
+          python3-pyatspi \
+          python3-tk \
+          scrot \
+          thunar \
+          x11-utils \
+          xdotool \
+          xdg-utils \
+          xvfb
+
+        command -v google-chrome >/dev/null 2>&1 || command -v google-chrome-stable >/dev/null 2>&1 || {
+          echo "Google Chrome is not installed on the Ubuntu runner image" >&2
+          exit 1
+        }
+
+    - name: Start deterministic X11 session
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        log_dir="$RUNNER_TEMP/holo-linux-desktop-logs"
+        chrome_profile="$RUNNER_TEMP/holo-linux-chrome-profile"
+        mkdir -p "$log_dir" "$chrome_profile" "$HOME/Desktop" "$HOME/Downloads"
+
+        eval "$(dbus-launch --sh-syntax)"
+        export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
+        export DISPLAY=:99
+        export GDK_BACKEND=x11
+        export QT_QPA_PLATFORM=xcb
+        export QT_ACCESSIBILITY=1
+        export QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1
+        export NO_AT_BRIDGE=0
+        export HOLO_E2E_CHROME_PROFILE="$chrome_profile"
+
+        mousepad_desktop="$(find /usr/share/applications -maxdepth 1 -iname '*mousepad*.desktop' -printf '%f\n' | head -1)"
+        if [ -z "$mousepad_desktop" ]; then
+          echo "Mousepad desktop entry is missing" >&2
+          exit 1
+        fi
+        xdg-mime default "$mousepad_desktop" text/plain
+
+        {
+          echo "DISPLAY=$DISPLAY"
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS"
+          echo "DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID"
+          echo "GDK_BACKEND=$GDK_BACKEND"
+          echo "QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
+          echo "QT_ACCESSIBILITY=$QT_ACCESSIBILITY"
+          echo "QT_LINUX_ACCESSIBILITY_ALWAYS_ON=$QT_LINUX_ACCESSIBILITY_ALWAYS_ON"
+          echo "NO_AT_BRIDGE=$NO_AT_BRIDGE"
+          echo "HOLO_E2E_CHROME_PROFILE=$HOLO_E2E_CHROME_PROFILE"
+          echo "HOLO_E2E_LINUX_LOG_DIR=$log_dir"
+        } >> "$GITHUB_ENV"
+
+        nohup Xvfb "$DISPLAY" -screen 0 1920x1080x24 -ac >"$log_dir/xvfb.log" 2>&1 &
+        echo $! > "$log_dir/xvfb.pid"
+
+        for _ in $(seq 1 50); do
+          if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+            break
+          fi
+          sleep 0.2
+        done
+        xdpyinfo -display "$DISPLAY" >/dev/null
+
+        nohup openbox >"$log_dir/openbox.log" 2>&1 &
+        echo $! > "$log_dir/openbox.pid"
+        nohup picom --backend xrender >"$log_dir/picom.log" 2>&1 &
+        echo $! > "$log_dir/picom.pid"
+        nohup /usr/bin/python3 tests/e2e/_linux_launcher.py >"$log_dir/launcher.log" 2>&1 &
+        echo $! > "$log_dir/launcher.pid"
+
+        for _ in $(seq 1 50); do
+          if xdotool search --onlyvisible --name "Holo E2E Applications" >/dev/null 2>&1; then
+            break
+          fi
+          sleep 0.2
+        done
+        xdotool search --onlyvisible --name "Holo E2E Applications" >/dev/null
+        xdotool mousemove 25 25
+        xdotool mousemove 200 200
+        xdotool getmouselocation --shell > "$log_dir/pointer.txt"
+        grep -Fx "X=200" "$log_dir/pointer.txt"
+        grep -Fx "Y=200" "$log_dir/pointer.txt"
+        scrot -o "$log_dir/preflight.png"
+        test -s "$log_dir/preflight.png"
+
+        {
+          echo "## Linux desktop"
+          echo
+          echo "- Display: \`1920x1080x24\` on \`$DISPLAY\`"
+          echo "- Mousepad: \`$(mousepad --version 2>&1 | head -1)\`"
+          echo "- Thunar: \`$(thunar --version 2>&1 | head -1)\`"
+          echo "- KCalc: \`$(kcalc --version 2>&1 | head -1)\`"
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "- Chrome: \`$(google-chrome --version)\`"
+          else
+            echo "- Chrome: \`$(google-chrome-stable --version)\`"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Print Linux desktop logs on setup failure
+      if: failure()
+      shell: bash
+      run: |
+        log_dir="$RUNNER_TEMP/holo-linux-desktop-logs"
+        for log in "$log_dir"/*.log; do
+          [ -f "$log" ] || continue
+          echo "::group::$(basename "$log")"
+          tail -n 200 "$log"
+          echo "::endgroup::"
+        done

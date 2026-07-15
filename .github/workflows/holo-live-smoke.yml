@@ -21,8 +21,9 @@ jobs:
         include:
           - os: macos-14
           - os: windows-latest
+          - os: ubuntu-22.04
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       AWS_REGION: us-west-2
       HAI_API_KEY_SECRET_ID: ${{ vars.HAI_API_KEY_SECRET_ID }}
@@ -31,6 +32,10 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Linux desktop
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/setup-linux-desktop
 
       - name: Log GitHub OIDC claims
         uses: actions/github-script@v7
@@ -252,5 +257,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: holo-live-smoke-${{ runner.os }}
-          path: ~/.holo/e2e-review/
+          path: |
+            ~/.holo/e2e-review/
+            ${{ runner.temp }}/holo-linux-desktop-logs/
           if-no-files-found: error
