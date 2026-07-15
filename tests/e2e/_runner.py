@@ -18,6 +18,7 @@ from .conftest import HoloLiveConfig
 
 _EVENT_LOG_RE = re.compile(r"events streamed to\s+(.+)")
 TIMEOUT_SHUTDOWN_GRACE_S = 10.0
+RUNTIME_DIAGNOSTIC_LOG_LEVEL = "DEBUG"
 
 
 def free_port() -> int:
@@ -120,6 +121,7 @@ def run_holo_foreground(
         command.extend(["--model", config.model])
     if config.base_url:
         command.extend(["--base-url", config.base_url])
+    runtime_env = {**os.environ, "HAI_AGENT_RUNTIME_LOG_LEVEL": RUNTIME_DIAGNOSTIC_LOG_LEVEL}
     start = time.monotonic()
     if not stream_output:
         try:
@@ -127,6 +129,7 @@ def run_holo_foreground(
                 command=command,
                 runs_dir=runs_dir,
                 agent_runtime_log_path=agent_runtime_log_path,
+                env=runtime_env,
                 timeout_s=config.timeout_s,
                 start=start,
             )
@@ -142,6 +145,7 @@ def run_holo_foreground(
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
+        env=runtime_env,
     )
     stdout_thread = _tee_stream(proc.stdout, sys.stdout, stdout_chunks)
     stderr_thread = _tee_stream(proc.stderr, sys.stderr, stderr_chunks)
@@ -174,6 +178,7 @@ def _run_holo_captured(
     command: list[str],
     runs_dir: Path,
     agent_runtime_log_path: Path,
+    env: dict[str, str],
     timeout_s: float,
     start: float,
 ) -> HoloRunResult:
@@ -183,6 +188,7 @@ def _run_holo_captured(
             cwd=Path(__file__).resolve().parents[2],
             capture_output=True,
             text=True,
+            env=env,
             timeout=timeout_s,
             check=False,
         )
