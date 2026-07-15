@@ -27,6 +27,10 @@ jobs:
       )
     strategy:
       fail-fast: false
+      # Keep live model traffic bounded. Launching all platform shards together can
+      # starve turns before the first observation is emitted, leaving no actionable
+      # task/evaluator evidence and consuming the entire per-task timeout.
+      max-parallel: 4
       matrix:
         include:
           - os: macos-14
