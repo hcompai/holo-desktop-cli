@@ -30,7 +30,7 @@ RUNTIME_DIR = Path.home() / ".holo" / "runtime"
 # Artifacts live under an immutable, version-scoped prefix, so a CDN edge can never serve stale bytes.
 RUNTIME_CDN_BASE = "https://assets.hcompanyprod.fr/hai-agent-runtime"
 BINARY_NAME = "hai-agent-runtime.exe" if os.name == "nt" else "hai-agent-runtime"
-# Guard value: published manifest entries must never use it, since every download would fail verification.
+# Marks a manifest platform whose artifact is not published yet; installs refuse it before any download.
 PLACEHOLDER_SHA256 = "0" * 64
 _DOWNLOAD_TIMEOUT = httpx.Timeout(30.0, read=600.0)
 # Generous ceiling (the runtime is hundreds of MB); guards against a lying/absent Content-Length filling the disk.
@@ -73,10 +73,11 @@ MANIFEST: dict[str, RuntimeArtifact] = {
         "hai-agent-runtime-linux-x86_64.zip",
         "3ef09e1706b100ead1d40384bd319d5b98754f151713226627d7e7a0ee0e30a3",
     ),
-}
-
-UNIMPLEMENTED_PLATFORMS: dict[str, str] = {
-    "darwin-x86_64": "hai-agent-runtime is not published for macOS Intel yet",
+    # Placeholder digest (bump_runtime.py needs a hex literal anchor); the release pipeline fills it in.
+    "windows-arm64": _artifact(
+        "hai-agent-runtime-windows-arm64.zip",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+    ),
 }
 
 
@@ -105,18 +106,11 @@ def pinned_artifact(*, settings: RuntimeInstallSettings) -> RuntimeArtifact:
             )
         return RuntimeArtifact(url=settings.download_url, sha256=settings.download_sha256)
     key = platform_key()
-    if key in UNIMPLEMENTED_PLATFORMS:
-        raise RuntimeArtifactUnavailable(
-            f"{UNIMPLEMENTED_PLATFORMS[key]}; put hai-agent-runtime on PATH, "
-            f"or set {DOWNLOAD_URL_ENV} + {DOWNLOAD_SHA256_ENV} to a trusted build"
-        )
     artifact = MANIFEST.get(key)
-    if artifact is None:
-        raise RuntimeError(f"no hai-agent-runtime release artifact for platform {key}")
-    if artifact.sha256 == PLACEHOLDER_SHA256:
-        raise RuntimeError(
-            f"hai-agent-runtime v{PINNED_RUNTIME_VERSION} has no published artifact for {key} yet; "
-            f"put hai-agent-runtime on PATH, or set {DOWNLOAD_URL_ENV} + {DOWNLOAD_SHA256_ENV} to a trusted build"
+    if artifact is None or artifact.sha256 == PLACEHOLDER_SHA256:
+        raise RuntimeArtifactUnavailable(
+            f"hai-agent-runtime is not published for {key} yet; put hai-agent-runtime on PATH, "
+            f"or set {DOWNLOAD_URL_ENV} + {DOWNLOAD_SHA256_ENV} to a trusted build"
         )
     return artifact
 
