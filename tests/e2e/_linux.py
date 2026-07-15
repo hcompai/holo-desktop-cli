@@ -265,9 +265,8 @@ def visit(node, depth=0):
         return
     text = ""
     try:
-        if node.getState().contains(pyatspi.STATE_SHOWING):
-            text_iface = node.queryText()
-            text = text_iface.getText(0, text_iface.characterCount)
+        text_iface = node.queryText()
+        text = text_iface.getText(0, text_iface.characterCount)
     except Exception:
         pass
     if name or text:

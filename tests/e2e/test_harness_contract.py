@@ -587,11 +587,11 @@ def test_calculator_ci_smoke_linux_prepares_two_plus_two(tmp_path: Path) -> None
 def test_linux_kcalc_display_prefers_accessible_display_value() -> None:
     entries = [
         {"name": "7", "role": "push button", "text": ""},
-        {"name": "Display", "role": "text", "text": "4"},
-        {"name": "2 + 2", "role": "label", "text": ""},
+        {"name": "100", "role": "label", "text": ""},
+        {"name": "", "role": "text", "text": "2 + 2 = 4"},
     ]
 
-    assert _linux.kcalc_display_from_entries(entries) == "4"
+    assert _linux.kcalc_display_from_entries(entries) == "2 + 2 = 4"
     assert _linux.kcalc_result_part("2 + 2 = 4") == "4"
 
 
