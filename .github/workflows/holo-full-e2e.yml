@@ -3,6 +3,15 @@ name: Holo Full E2E
 on:
   workflow_dispatch:
     inputs:
+      platform:
+        description: "Platform to run (all keeps the release posture)"
+        type: choice
+        options:
+          - all
+          - linux
+          - darwin
+          - win32
+        default: all
       fast:
         description: "Run with fast mode (--fast: one screenshot, no thinking, smaller uploads)"
         type: boolean
@@ -15,8 +24,43 @@ permissions:
   id-token: write
 
 jobs:
+  plan:
+    name: plan full-e2e matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.result }}
+    steps:
+      - name: Select platform shards
+        id: matrix
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const platforms = [
+              { os: 'macos-14', platform: 'darwin', platform_name: 'macOS' },
+              { os: 'windows-latest', platform: 'win32', platform_name: 'Windows' },
+              { os: 'ubuntu-22.04', platform: 'linux', platform_name: 'Linux' },
+            ];
+            const selected = context.payload.inputs?.platform || 'all';
+            const allowed = new Set(['all', ...platforms.map(({ platform }) => platform)]);
+            if (!allowed.has(selected)) {
+              core.setFailed(`Unsupported platform selection: ${selected}`);
+              return JSON.stringify({ include: [] });
+            }
+            const include = platforms
+              .filter(({ platform }) => selected === 'all' || platform === selected)
+              .flatMap((entry) => Array.from({ length: 4 }, (_, shard_index) => ({
+                ...entry,
+                shard_index,
+                shard_total: 4,
+                shard_display: `${shard_index + 1}/4`,
+              })));
+            core.info(`Selected ${include.length} shard(s) for ${selected}`);
+            return JSON.stringify({ include });
+
   full-e2e:
     name: full-e2e (${{ matrix.platform_name }} shard ${{ matrix.shard_display }})
+    needs: plan
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (
@@ -31,80 +75,7 @@ jobs:
       # starve turns before the first observation is emitted, leaving no actionable
       # task/evaluator evidence and consuming the entire per-task timeout.
       max-parallel: 2
-      matrix:
-        include:
-          - os: macos-14
-            platform: darwin
-            platform_name: macOS
-            shard_index: 0
-            shard_total: 4
-            shard_display: 1/4
-          - os: macos-14
-            platform: darwin
-            platform_name: macOS
-            shard_index: 1
-            shard_total: 4
-            shard_display: 2/4
-          - os: macos-14
-            platform: darwin
-            platform_name: macOS
-            shard_index: 2
-            shard_total: 4
-            shard_display: 3/4
-          - os: macos-14
-            platform: darwin
-            platform_name: macOS
-            shard_index: 3
-            shard_total: 4
-            shard_display: 4/4
-          - os: windows-latest
-            platform: win32
-            platform_name: Windows
-            shard_index: 0
-            shard_total: 4
-            shard_display: 1/4
-          - os: windows-latest
-            platform: win32
-            platform_name: Windows
-            shard_index: 1
-            shard_total: 4
-            shard_display: 2/4
-          - os: windows-latest
-            platform: win32
-            platform_name: Windows
-            shard_index: 2
-            shard_total: 4
-            shard_display: 3/4
-          - os: windows-latest
-            platform: win32
-            platform_name: Windows
-            shard_index: 3
-            shard_total: 4
-            shard_display: 4/4
-          - os: ubuntu-22.04
-            platform: linux
-            platform_name: Linux
-            shard_index: 0
-            shard_total: 4
-            shard_display: 1/4
-          - os: ubuntu-22.04
-            platform: linux
-            platform_name: Linux
-            shard_index: 1
-            shard_total: 4
-            shard_display: 2/4
-          - os: ubuntu-22.04
-            platform: linux
-            platform_name: Linux
-            shard_index: 2
-            shard_total: 4
-            shard_display: 3/4
-          - os: ubuntu-22.04
-            platform: linux
-            platform_name: Linux
-            shard_index: 3
-            shard_total: 4
-            shard_display: 4/4
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     env:
