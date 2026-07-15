@@ -26,6 +26,8 @@ class E2EResult(BaseModel):
     duration_s: float | None
     event_log_path: Path | None
     copied_event_log_path: Path | None
+    runtime_log_path: Path | None = None
+    copied_runtime_log_path: Path | None = None
     assertion_passed: bool
     failure_category: str | None
     artifact_dir: Path
@@ -46,6 +48,7 @@ class E2EArtifacts:
     before_screenshot_path: Path
     after_screenshot_path: Path
     events_path: Path
+    runtime_log_path: Path
     final_dir: Path
 
     @classmethod
@@ -63,6 +66,7 @@ class E2EArtifacts:
             before_screenshot_path=root / "screen-before.png",
             after_screenshot_path=root / "screen-after.png",
             events_path=root / "events.jsonl",
+            runtime_log_path=root / "runtime.log",
             final_dir=root / "final",
         )
         artifacts.write_platform_metadata()
@@ -104,6 +108,12 @@ class E2EArtifacts:
             return None
         shutil.copy2(event_log_path, self.events_path)
         return self.events_path
+
+    def copy_runtime_log(self, runtime_log_path: Path | None) -> Path | None:
+        if runtime_log_path is None or not runtime_log_path.exists():
+            return None
+        shutil.copy2(runtime_log_path, self.runtime_log_path)
+        return self.runtime_log_path
 
     def preserve_final_artifacts(self, prepared_task: PreparedTask) -> None:
         self.final_dir.mkdir(parents=True, exist_ok=True)

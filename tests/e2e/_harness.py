@@ -67,6 +67,7 @@ def run_and_evaluate(
         copied_event_log = artifacts.copy_event_log(event_log_path)
         if copied_event_log is None:
             copied_event_log = artifacts.copy_event_log(find_latest_event_log(artifacts.runs_dir))
+        copied_runtime_log = artifacts.copy_runtime_log(run_result.runtime_log_path if run_result else None)
         timing = extract_step_timings(copied_event_log)
         artifacts.write_result(
             E2EResult(
@@ -79,6 +80,8 @@ def run_and_evaluate(
                 duration_s=run_result.duration_s if run_result else None,
                 event_log_path=run_result.event_log_path if run_result else None,
                 copied_event_log_path=copied_event_log,
+                runtime_log_path=run_result.runtime_log_path if run_result else None,
+                copied_runtime_log_path=copied_runtime_log,
                 assertion_passed=passed,
                 failure_category=failure_category.value if failure_category else None,
                 artifact_dir=artifacts.root,

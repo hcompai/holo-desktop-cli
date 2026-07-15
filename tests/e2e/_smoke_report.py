@@ -404,6 +404,7 @@ def _write_review_bundle(summaries: list[TaskSmokeSummary], *, root: Path, outpu
             "result.json",
             "stdout.txt",
             "stderr.txt",
+            "runtime.log",
             "platform.json",
         ):
             _copy_review_file(summary.task_dir / name, output_dir / f"{prefix}{name}")

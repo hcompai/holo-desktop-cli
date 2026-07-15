@@ -1,12 +1,15 @@
 import json
+import os
+import signal
 import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from holo_desktop.settings import load_holo_settings
 
-from . import _harness, _linux, _macos
+from . import _harness, _linux, _macos, _runner
 from ._artifacts import E2EArtifacts, E2EResult
 from ._domain import EvaluationResult, FailureCategory, PreparedTask
 from ._environment import UnsupportedEnvironmentError, runner_for_platform
@@ -115,6 +118,8 @@ def test_holo_max_time_is_inside_subprocess_timeout(tmp_path: Path, monkeypatch:
 
 def test_run_and_evaluate_uses_live_timeout_for_holo_max_time(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     captured_max_time_s: float | None = None
+    runtime_log = tmp_path / "hai-agent-runtime.log"
+    runtime_log.write_text("Attempt #1 failed with APITimeoutError\n", encoding="utf-8")
 
     def fake_run_holo_foreground(**kwargs: object) -> HoloRunResult:
         nonlocal captured_max_time_s
@@ -128,6 +133,7 @@ def test_run_and_evaluate_uses_live_timeout_for_holo_max_time(tmp_path: Path, mo
             stderr="",
             duration_s=1.0,
             event_log_path=None,
+            runtime_log_path=runtime_log,
         )
 
     monkeypatch.setattr(_harness, "run_holo_foreground", fake_run_holo_foreground)
@@ -148,6 +154,25 @@ def test_run_and_evaluate_uses_live_timeout_for_holo_max_time(tmp_path: Path, mo
     )
 
     assert captured_max_time_s == 240.0
+    assert artifacts.runtime_log_path.read_text(encoding="utf-8") == "Attempt #1 failed with APITimeoutError\n"
+    result = json.loads(artifacts.result_path.read_text(encoding="utf-8"))
+    assert result["runtime_log_path"] == str(runtime_log)
+    assert result["copied_runtime_log_path"] == str(artifacts.runtime_log_path)
+
+
+def test_timeout_cleanup_force_kills_after_grace_period() -> None:
+    proc = MagicMock()
+    proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="holo run", timeout=10.0), -9]
+
+    message = _runner._graceful_timeout_cleanup(proc)
+
+    if os.name == "nt":
+        proc.terminate.assert_called_once_with()
+    else:
+        proc.send_signal.assert_called_once_with(signal.SIGINT)
+    proc.kill.assert_called_once_with()
+    expected_signal = "terminate" if os.name == "nt" else "SIGINT"
+    assert message == f"{expected_signal} cleanup exceeded 10s; force-killed"
 
 
 def test_run_and_evaluate_rejects_zero_step_holo_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
