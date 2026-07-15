@@ -257,7 +257,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: holo-live-smoke-${{ runner.os }}
-          path: |
-            ~/.holo/e2e-review/
-            ${{ runner.temp }}/holo-linux-desktop-logs/
+          path: ~/.holo/e2e-review/
           if-no-files-found: error
+
+      - name: Upload Linux desktop logs
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: holo-live-smoke-Linux-desktop-logs
+          path: ${{ runner.temp }}/holo-linux-desktop-logs/
+          if-no-files-found: warn
