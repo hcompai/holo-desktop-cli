@@ -12,6 +12,7 @@ runs:
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
           at-spi2-core \
           dbus-x11 \
+          gnome-screenshot \
           kcalc \
           libatk-adaptor \
           mousepad \
@@ -89,7 +90,7 @@ runs:
         nohup /usr/bin/python3 tests/e2e/_linux_launcher.py >"$log_dir/launcher.log" 2>&1 &
         echo $! > "$log_dir/launcher.pid"
 
-        for _ in $(seq 1 50); do
+        for _ in $(seq 1 150); do
           if xdotool search --onlyvisible --name "Holo E2E Applications" >/dev/null 2>&1; then
             break
           fi
@@ -103,6 +104,8 @@ runs:
         grep -Fx "Y=200" "$log_dir/pointer.txt"
         scrot -o "$log_dir/preflight.png"
         test -s "$log_dir/preflight.png"
+        gnome-screenshot -f "$log_dir/runtime-screenshot-preflight.png"
+        test -s "$log_dir/runtime-screenshot-preflight.png"
 
         {
           echo "## Linux desktop"
