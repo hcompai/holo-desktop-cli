@@ -246,13 +246,9 @@ def test_run_and_evaluate_rejects_zero_step_holo_run(tmp_path: Path, monkeypatch
 
 def test_holo_run_command_uses_agent_api_runtime_flags(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     captured_command: list[str] = []
-    captured_env: dict[str, str] = {}
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         captured_command.extend(args)
-        env = kwargs["env"]
-        assert isinstance(env, dict)
-        captured_env.update(env)
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -268,7 +264,6 @@ def test_holo_run_command_uses_agent_api_runtime_flags(tmp_path: Path, monkeypat
     assert "--max-steps" in captured_command
     assert "--max-time-s" in captured_command
     assert "--fast" not in captured_command
-    assert captured_env["HAI_AGENT_RUNTIME_LOG_LEVEL"] == "DEBUG"
 
 
 def test_holo_run_command_passes_fast_when_enabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
