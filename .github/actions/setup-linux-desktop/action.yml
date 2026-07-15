@@ -39,6 +39,7 @@ runs:
         log_dir="$RUNNER_TEMP/holo-linux-desktop-logs"
         chrome_profile="$RUNNER_TEMP/holo-linux-chrome-profile"
         mkdir -p "$log_dir" "$chrome_profile" "$HOME/Desktop" "$HOME/Downloads"
+        touch "$HOME/.Xauthority"
 
         eval "$(dbus-launch --sh-syntax)"
         export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
