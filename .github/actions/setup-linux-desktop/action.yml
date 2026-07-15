@@ -85,6 +85,15 @@ runs:
 
         nohup openbox >"$log_dir/openbox.log" 2>&1 &
         echo $! > "$log_dir/openbox.pid"
+
+        for _ in $(seq 1 100); do
+          if xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q 'window id #'; then
+            break
+          fi
+          sleep 0.2
+        done
+        xprop -root _NET_SUPPORTING_WM_CHECK | grep -q 'window id #'
+
         nohup picom --backend xrender >"$log_dir/picom.log" 2>&1 &
         echo $! > "$log_dir/picom.pid"
         nohup /usr/bin/python3 tests/e2e/_linux_launcher.py >"$log_dir/launcher.log" 2>&1 &
