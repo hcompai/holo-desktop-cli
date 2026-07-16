@@ -9,7 +9,7 @@ import pytest
 
 from holo_desktop.settings import load_holo_settings
 
-from . import _harness, _linux, _macos, _runner
+from . import _harness, _macos, _runner
 from ._artifacts import E2EArtifacts, E2EResult
 from ._domain import EvaluationResult, FailureCategory, PreparedTask
 from ._environment import UnsupportedEnvironmentError, runner_for_platform
@@ -19,6 +19,7 @@ from .environments import windows as _windows
 from .environments.linux import LINUX_FOREGROUND_TASKS, LinuxEnvironmentRunner
 from .environments.macos import MACOS_FOREGROUND_TASKS
 from .environments.windows import WINDOWS_FOREGROUND_TASKS, WindowsEnvironmentRunner
+from .evaluators import linux as _linux_evaluators
 from .evaluators.browser import DownloadedFileEvaluator
 from .evaluators.calculator import CalculatorResultEvaluator, calculator_result_part
 from .evaluators.finder import CopiedFileEvaluator, OpenedFileEvaluator, ProtectedFileEvaluator
@@ -632,15 +633,15 @@ def test_linux_kcalc_display_prefers_accessible_display_value() -> None:
         {"name": "", "role": "text", "text": "2 + 2 = 4"},
     ]
 
-    assert _linux.kcalc_display_from_entries(entries) == "2 + 2 = 4"
-    assert _linux.kcalc_result_part("2 + 2 = 4") == "4"
+    assert _linux_evaluators.kcalc_display_from_entries(entries) == "2 + 2 = 4"
+    assert _linux_evaluators.kcalc_result_part("2 + 2 = 4") == "4"
 
 
 def test_linux_opened_file_window_requires_mousepad_and_target_name() -> None:
     titles = ["Desktop - Thunar", "other.txt - Mousepad", "fixture.txt - Mousepad"]
 
-    assert _linux.opened_file_window("fixture.txt", titles) == "fixture.txt - Mousepad"
-    assert _linux.opened_file_window("missing.txt", titles) is None
+    assert _linux_evaluators.opened_file_window("fixture.txt", titles) == "fixture.txt - Mousepad"
+    assert _linux_evaluators.opened_file_window("missing.txt", titles) is None
 
 
 def test_finder_open_file_by_double_click_prepares_desktop_text_file(

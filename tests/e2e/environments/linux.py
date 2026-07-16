@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .. import _linux, _preserve
 from .._domain import PreparedTask, TaskCase
+from ..evaluators import linux as _linux_evaluators
 from ..evaluators.finder import CopiedFileEvaluator, FolderExistsEvaluator, ProtectedFileEvaluator
 from ..evaluators.textedit import FileContainsEvaluator
 from ..tasks import (
@@ -185,7 +186,7 @@ class LinuxEnvironmentRunner:
         def preserve(artifact_dir: Path) -> None:
             _preserve.write_directory_listing(_linux.DESKTOP, artifact_dir, name="desktop-listing.txt")
             _preserve.copy_path(target_path, artifact_dir, name=target_path.name)
-            _linux.preserve_window_titles(artifact_dir)
+            _linux_evaluators.preserve_window_titles(artifact_dir)
 
         return PreparedTask(
             case=case,
@@ -194,7 +195,7 @@ class LinuxEnvironmentRunner:
                 "Do not use keyboard shortcuts, menus, a terminal, or any command line tool. Then stop."
             ),
             workspace=workspace,
-            evaluator=_linux.LinuxOpenedFileEvaluator(target_path, content),
+            evaluator=_linux_evaluators.LinuxOpenedFileEvaluator(target_path, content),
             metadata={"target_path": str(target_path), "expected_content": content, "app": "Thunar"},
             cleanup=_linux.cleanup_opened_file_task,
             preserve_artifacts=preserve,
@@ -236,10 +237,10 @@ class LinuxEnvironmentRunner:
                 "Python, or any command line tool. Then stop."
             ),
             workspace=workspace,
-            evaluator=_linux.LinuxCalculatorResultEvaluator(a=a, b=b, expected=expected),
+            evaluator=_linux_evaluators.LinuxCalculatorResultEvaluator(a=a, b=b, expected=expected),
             metadata={"a": a, "b": b, "expected": expected, "app": "KCalc"},
             cleanup=_linux.cleanup_calculator,
-            preserve_artifacts=_linux.preserve_kcalc_display,
+            preserve_artifacts=_linux_evaluators.preserve_kcalc_display,
         )
 
     def _prepare_browser_download_file(self, case: TaskCase, workspace: Path) -> PreparedTask:
