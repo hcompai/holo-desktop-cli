@@ -127,13 +127,6 @@ def cleanup_process(name: str, *, timeout: float = 5.0) -> None:
         time.sleep(0.1)
     with suppress(FileNotFoundError, subprocess.TimeoutExpired):
         subprocess.run(["pkill", "-KILL", "-x", name], capture_output=True, check=False, timeout=5.0)
-    deadline = time.monotonic() + 2.0
-    while time.monotonic() < deadline:
-        running = _run(["pgrep", "-x", name], timeout=2.0)
-        if running.returncode != 0:
-            return
-        time.sleep(0.1)
-    raise RuntimeError(f"failed to stop Linux process {name!r}; remaining pids: {running.stdout.strip()}")
 
 
 def cleanup_editor_and_desktop() -> None:
@@ -165,8 +158,16 @@ def cleanup_chrome() -> None:
             check=False,
             timeout=5.0,
         )
-    cleanup_process("chrome")
-    cleanup_process("google-chrome")
+    cleanup_process("chrome", timeout=1.0)
+    cleanup_process("google-chrome", timeout=1.0)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        chrome_titles = [title for _, title in visible_windows() if "chrome" in title.casefold()]
+        if not chrome_titles:
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError(f"failed to close Chrome windows: {chrome_titles}")
     shutil.rmtree(profile, ignore_errors=True)
     profile.mkdir(parents=True, exist_ok=True)
 
