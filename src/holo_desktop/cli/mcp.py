@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents.local import LocalRuntime
 from mcp.server.fastmcp import Context, FastMCP
 
 from holo_desktop.agent_client.client import AgentApiClient
 from holo_desktop.agent_client.events import format_event
-from holo_desktop.agent_client.launcher import AgentDaemon, ensure_running_from_env
+from holo_desktop.agent_client.sdk_runtime import ensure_local_runtime_from_env
 from holo_desktop.agent_client.session_runner import (
     DEFAULT_MAX_STEPS,
     DEFAULT_MAX_TIME_S,
@@ -38,21 +39,24 @@ INSTRUCTIONS = (
 @dataclass
 class Lifespan:
     client: AgentApiClient
-    daemon: AgentDaemon
+    runtime: LocalRuntime
     active_session: Session | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastMCP) -> AsyncIterator[Lifespan]:
-    daemon = await ensure_running_from_env()
-    client = AgentApiClient(daemon.base_url, daemon.token)
-    state = Lifespan(client=client, daemon=daemon)
+    # ensure_local_runtime_from_env may download the runtime on first run; keep that off the event loop.
+    runtime = await asyncio.to_thread(ensure_local_runtime_from_env)
+    client = AgentApiClient(runtime)
+    state = Lifespan(client=client, runtime=runtime)
     try:
         yield state
     finally:
         await _cancel_active_sessions_best_effort(state)
         await client.aclose()
-        await daemon.aclose()
+        # Stop the runtime only if this server spawned it; attached runtimes belong to their spawner.
+        if runtime.owned:
+            await asyncio.to_thread(runtime.shutdown)
 
 
 mcp_app = FastMCP("holo-desktop", instructions=INSTRUCTIONS, lifespan=lifespan)

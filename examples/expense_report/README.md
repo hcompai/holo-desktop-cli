@@ -13,7 +13,7 @@ holo-desktop-cli is a thin client: the agent lives behind the closed `hai-agent-
 ```mermaid
 flowchart LR
     cli["expense-report-demo run"] --> setup["stage files + launch apps<br/>(open / osascript)"]
-    setup --> rt["session.Runtime<br/>ensure_running(SpawnConfig)"]
+    setup --> rt["session.Runtime<br/>ensure_local_runtime(SpawnConfig)"]
     rt --> bin["hai-agent-runtime<br/>(closed binary, loopback HTTP)"]
     bin --> events["events.jsonl + TaskResult"]
     events --> verify["verifiers<br/>(openpyxl, AppleScript)"]
@@ -24,7 +24,7 @@ flowchart LR
 
 macOS only for now. Requires:
 - Python >= 3.12 and [uv](https://docs.astral.sh/uv/).
-- The `hai-agent-runtime` binary (holo-desktop-cli's launcher resolves a managed install under `~/.holo/runtime/` or `PATH`; running `holo run "hi"` once installs it).
+- The `hai-agent-runtime` binary (the `hai-agents` SDK resolves a verified managed install or a binary on `PATH`; running `holo run "hi"` once installs it).
 - An H Company API key (`holo login`, or `HAI_API_KEY` in `~/.holo/.env`). Not needed with `--fake` or `--base-url`.
 - [LibreOffice](https://www.libreoffice.org/download/download/) installed at `/Applications/LibreOffice.app` (bundle id `org.libreoffice.script`).
 
@@ -72,7 +72,7 @@ Teardown quarantines the staged files into `~/.holo/runs/expense_report-quaranti
 
 ```
 src/expense_report_demo/
-  session.py           # Runtime (ensure_running + AgentApiClient), TaskResult, events.jsonl persistence
+  session.py           # Runtime (ensure_local_runtime + AgentApiClient), TaskResult, events.jsonl persistence
   apps.py              # launch_app, wait_for_app, activate_app, kill_all (open/osascript)
   metrics.py           # Stat, StepStats, Metrics, read_events (over TrajectoryEvent JSONL)
   fixtures.py          # OSWorld HF downloader, sha256 cache, TOML pin

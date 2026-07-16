@@ -1,48 +1,74 @@
-"""Async HTTP client for the hai-agent-runtime agent-API surface."""
+"""SessionApi adapter over the hai-agents SDK, bound to one local runtime.
+
+The agent-API wire protocol (tagged message bodies, 204-vs-status terminal
+detection) lives in hai-agents now; this module only maps session_runner's
+structural SessionApi/EventStream protocols onto AsyncClient.local(...) and
+its AsyncSessionHandles. Two normalizations stay Holo-owned because the
+frozen runner/render code depends on them:
+
+- SDK events (typed Fern payloads) flatten back to ``agp_types.TrajectoryEvent``
+  with dict ``data`` so events.py / feed / acp / mcp keep parsing them;
+- SDK ``ApiError`` translates to ``httpx.HTTPStatusError`` so the runner's
+  dead-session recreate path (404/409/410) keeps firing.
+"""
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from types import TracebackType
+from typing import TYPE_CHECKING
 
 import httpx
-from agent_interface.definition import UserMessageEvent
-from agent_interface.specs.session import SessionRequest, SessionStatus
-from agp_types import TrajectoryChanges, TrajectoryEvent, TrajectoryStatus
+from agent_interface.specs.session import SessionRequest
+from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents import AsyncClient
+from hai_agents.core.api_error import ApiError
+
+if TYPE_CHECKING:
+    from hai_agents import AsyncSessionHandle
+    from hai_agents.local import LocalRuntime
 
 logger = logging.getLogger(__name__)
-
-API_PREFIX = "/api/v2"
-# Long-poll window per request; modest to stay under the server's cap and keep Ctrl+C responsive.
-POLL_WAIT_S = 10
 
 _KNOWN_STATUSES = frozenset(s.value for s in TrajectoryStatus)
 
 
-def _coerce_status(payload: object) -> object:
-    if isinstance(payload, dict):
-        status = payload.get("status")
-        if isinstance(status, str) and status not in _KNOWN_STATUSES:
-            # End the turn instead of mapping to a non-terminal status: an unknown *terminal* status
-            # would otherwise never trip end-of-turn and the stream would poll until external limits hit.
-            logger.warning("unrecognized session status %r from runtime; ending turn as failed", status)
-            patched = {**payload, "status": TrajectoryStatus.FAILED.value}
-            if not patched.get("error"):
-                patched["error"] = f"runtime reported unrecognized session status {status!r}"
-            return patched
-    return payload
+def _as_httpx_error(exc: ApiError, method: str, url: str) -> httpx.HTTPStatusError:
+    """Rehydrate an SDK ApiError as the httpx error shape the frozen session_runner expects."""
+    request = httpx.Request(method, url)
+    response = httpx.Response(exc.status_code or 500, request=request, text=str(exc.body or ""))
+    return httpx.HTTPStatusError(str(exc), request=request, response=response)
+
+
+@contextlib.asynccontextmanager
+async def _api_errors_as_httpx(method: str, url: str) -> AsyncIterator[None]:
+    try:
+        yield
+    except ApiError as exc:
+        raise _as_httpx_error(exc, method, url) from exc
+
+
+def _as_trajectory_event(raw: object) -> TrajectoryEvent:
+    """Flatten one SDK SessionEvent (typed pydantic payloads) into the agp wire model."""
+    if isinstance(raw, TrajectoryEvent):
+        return raw
+    if isinstance(raw, dict):
+        return TrajectoryEvent.model_validate(raw)
+    dump = getattr(raw, "model_dump", None)
+    return TrajectoryEvent.model_validate(dump() if callable(dump) else raw)
 
 
 class AgentApiClient:
-    """Authenticated async client bound to one agent-API base URL."""
+    """The session_runner.SessionApi surface, backed by hai-agents local mode."""
 
-    def __init__(self, base_url: str, token: str, *, timeout: float = 60.0) -> None:
-        self._http = httpx.AsyncClient(
-            base_url=f"{base_url}{API_PREFIX}",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=httpx.Timeout(timeout, connect=5.0),
-        )
+    def __init__(self, runtime: LocalRuntime) -> None:
+        self._client = AsyncClient.local(runtime=runtime)
+        self._base_url = runtime.base_url
+        # session_runner drives sessions by id string; handles are per-process,
+        # which matches every caller (run/serve/mcp/acp hold one client per process).
+        self._handles: dict[str, AsyncSessionHandle] = {}
 
     async def __aenter__(self) -> AgentApiClient:
         return self
@@ -56,100 +82,88 @@ class AgentApiClient:
         await self.aclose()
 
     async def aclose(self) -> None:
-        await self._http.aclose()
+        # The generated AsyncClient exposes no aclose; close its underlying httpx client.
+        closer = getattr(self._client, "aclose", None)
+        if closer is not None:
+            await closer()
+            return
+        wrapper = getattr(self._client, "_client_wrapper", None)
+        http = getattr(getattr(wrapper, "httpx_client", None), "httpx_client", None)
+        if http is not None:
+            await http.aclose()
+
+    def _handle(self, session_id: str) -> AsyncSessionHandle:
+        handle = self._handles.get(session_id)
+        if handle is None:
+            raise RuntimeError(f"unknown agent-API session {session_id!r}; sessions are per-process")
+        return handle
+
+    def _url(self, suffix: str) -> str:
+        return f"{self._base_url}/api/v2{suffix}"
 
     async def create_session(self, request: SessionRequest) -> str:
         """Create a session and return its id."""
-        resp = await self._http.post("/sessions", json=request.model_dump(mode="json", exclude_none=True))
-        resp.raise_for_status()
-        return str(resp.json()["id"])
-
-    async def get_changes(
-        self, session_id: str, from_index: int, *, wait_for_seconds: int, include_events: bool
-    ) -> TrajectoryChanges | None:
-        """One long-poll for changes since ``from_index``; ``None`` when nothing arrived (204)."""
-        resp = await self._http.get(
-            f"/sessions/{session_id}/changes",
-            params={"from_index": from_index, "wait_for_seconds": wait_for_seconds, "include_events": include_events},
-        )
-        if resp.status_code == 204:
-            return None
-        resp.raise_for_status()
-        return TrajectoryChanges.model_validate(_coerce_status(resp.json()))
-
-    async def get_status(self, session_id: str) -> SessionStatus:
-        """Live session status; authoritative for terminal detection (``/changes`` 204s past the tail)."""
-        resp = await self._http.get(f"/sessions/{session_id}/status")
-        resp.raise_for_status()
-        return SessionStatus.model_validate(_coerce_status(resp.json()))
+        # start_session takes create_session kwargs; the dump is the exact wire
+        # body the pre-SDK client POSTed, so requests.py output passes through unmodified.
+        async with _api_errors_as_httpx("POST", self._url("/sessions")):
+            handle = await self._client.start_session(**request.model_dump(mode="json", exclude_none=True))
+        self._handles[handle.id] = handle
+        return handle.id
 
     async def send_message(self, session_id: str, text: str) -> None:
-        # Body is a server-side tagged union, so the typed model's "type" discriminator is required.
-        body = UserMessageEvent(message=text).model_dump(mode="json")
-        resp = await self._http.post(f"/sessions/{session_id}/messages", json=body)
-        resp.raise_for_status()
+        async with _api_errors_as_httpx("POST", self._url(f"/sessions/{session_id}/messages")):
+            await self._handle(session_id).send_message(text)
 
     async def pause(self, session_id: str) -> None:
         """Freeze the agent after its current step; pairs with cancel for a responsive stop."""
-        resp = await self._http.post(f"/sessions/{session_id}/pause")
-        resp.raise_for_status()
+        async with _api_errors_as_httpx("POST", self._url(f"/sessions/{session_id}/pause")):
+            await self._handle(session_id).pause()
 
     async def cancel(self, session_id: str) -> None:
-        resp = await self._http.delete(f"/sessions/{session_id}")
-        if resp.status_code not in (200, 204):
-            resp.raise_for_status()
+        async with _api_errors_as_httpx("DELETE", self._url(f"/sessions/{session_id}")):
+            await self._handle(session_id).cancel()
 
     def stream(self, session_id: str, *, from_index: int = 0) -> SessionStream:
-        return SessionStream(self, session_id, from_index=from_index)
-
-
-def _is_end_of_turn(status: TrajectoryStatus) -> bool:
-    """Terminal, or IDLE (interactive session answered and awaits the next task)."""
-    return status.is_terminal or status == TrajectoryStatus.IDLE
+        return SessionStream(self._handle(session_id), self._url(f"/sessions/{session_id}"), from_index=from_index)
 
 
 class SessionStream:
-    """Tails a session's events to end-of-turn, accumulating the final projection."""
+    """EventStream projection over AsyncSessionHandle.stream(); field names are the runner's contract."""
 
-    def __init__(self, client: AgentApiClient, session_id: str, *, from_index: int = 0) -> None:
-        self._client = client
-        self._session_id = session_id
+    def __init__(self, handle: AsyncSessionHandle, url: str, *, from_index: int = 0) -> None:
+        self._handle = handle
+        self._url = url
         self.next_index = from_index
         self.answer: str | dict[str, object] | None = None
         self.status: TrajectoryStatus | None = None
         self.error: str | None = None
 
     async def events(self) -> AsyncIterator[TrajectoryEvent]:
-        """Yield each new ``TrajectoryEvent`` until the session reaches end-of-turn."""
-        while True:
-            changes = await self._client.get_changes(
-                self._session_id, self.next_index, wait_for_seconds=POLL_WAIT_S, include_events=True
-            )
-            if changes is not None:
-                self.next_index += len(changes.new_events)
-                if changes.answer is not None:
-                    self.answer = changes.answer
-                # status + error are one coherent snapshot: track the latest so a recovered
-                # session does not finish carrying a stale failure from an earlier batch.
-                self.status = changes.status
-                self.error = changes.error
-                for event in changes.new_events:
-                    yield event
-                if _is_end_of_turn(changes.status):
-                    return
-                continue
-            status = await self._client.get_status(self._session_id)
-            if _is_end_of_turn(status.status):
-                await self._finalize(status)
-                return
+        """Yield each new event until end-of-turn (SDK-owned), then adopt the terminal projection."""
+        async with _api_errors_as_httpx("GET", self._url):
+            async for event in self._handle.stream(from_index=self.next_index):
+                self.next_index += 1
+                yield _as_trajectory_event(event)
+            status = await self._handle.status()
+            self._adopt_status(status.status, status.error)
+            # Pick up the final answer the event tail may not carry (the old _finalize behavior).
+            final = await self._handle.changes(from_index=0, include_events=False, wait_for_seconds=0)
+            if final is not None:
+                self.answer = final.answer
+                self.error = self.error or final.error
 
-    async def _finalize(self, status: SessionStatus) -> None:
-        """Adopt the authoritative status and pick up the final answer the 204 hid from us."""
-        self.status = status.status
-        self.error = status.error
-        if self.answer is not None:
+    def _adopt_status(self, raw: object, error: str | None) -> None:
+        """Adopt the authoritative status, hardening against statuses this client doesn't know.
+
+        Rehomed from the old client's _coerce_status: an unknown status ends the
+        turn as FAILED with an explanatory error instead of crashing the projection
+        or reporting a phantom success.
+        """
+        value = raw.value if isinstance(raw, TrajectoryStatus) else raw
+        if isinstance(value, str) and value in _KNOWN_STATUSES:
+            self.status = TrajectoryStatus(value)
+            self.error = error
             return
-        final = await self._client.get_changes(self._session_id, 0, wait_for_seconds=0, include_events=False)
-        if final is not None:
-            self.answer = final.answer
-            self.error = self.error or final.error
+        logger.warning("unrecognized session status %r from runtime; ending turn as failed", raw)
+        self.status = TrajectoryStatus.FAILED
+        self.error = error or f"runtime reported unrecognized session status {raw!r}"

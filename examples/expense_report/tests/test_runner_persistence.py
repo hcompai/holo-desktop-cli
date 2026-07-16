@@ -121,6 +121,7 @@ def test_persist_writes_task_json_and_appends_csv(tmp_path: Path) -> None:
         answer="hello world",
         verify_checks=checks,
         events_path="runs/test_demo/20260612-120000/events.jsonl",
+        runtime_log_path=None,
         metrics=None,
     )
 
@@ -159,6 +160,8 @@ class _FakeRuntime:
     """Stands in for session.Runtime so run_demo's lifecycle runs without a daemon."""
 
     def __init__(self, *_args: object, **_kwargs: object) -> None: ...
+
+    log_path = Path("fake-runtime.log")
 
     def __enter__(self) -> _FakeRuntime:
         return self

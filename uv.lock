@@ -619,6 +619,16 @@ wheels = [
 ]
 
 [[package]]
+name = "hai-agents"
+version = "1.0.6"
+source = { git = "https://github.com/hcompai/hai-agents-python.git?branch=claude%2Fsdk-local-mode#f65524a9962f0569232c40af5df660c17b74d6e4" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+
+[[package]]
 name = "holo-desktop-cli"
 version = "0.0.2"
 source = { editable = "." }
@@ -626,6 +636,7 @@ dependencies = [
     { name = "a2a-sdk", extra = ["http-server"] },
     { name = "agent-client-protocol" },
     { name = "hai-agent-api" },
+    { name = "hai-agents" },
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
@@ -659,6 +670,7 @@ requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=1.0.3" },
     { name = "agent-client-protocol", specifier = ">=0.10" },
     { name = "hai-agent-api", specifier = ">=0.1.15" },
+    { name = "hai-agents", extras = ["local"], git = "https://github.com/hcompai/hai-agents-python.git?branch=claude%2Fsdk-local-mode" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.11.4" },

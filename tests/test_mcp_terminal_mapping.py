@@ -63,7 +63,7 @@ class FakeMcpContext:
 
     @property
     def request_context(self) -> object:
-        return SimpleNamespace(lifespan_context=Lifespan(client=FakeApiClient(self.outcome), daemon=None))  # type: ignore[arg-type]
+        return SimpleNamespace(lifespan_context=Lifespan(client=FakeApiClient(self.outcome), runtime=None))  # type: ignore[arg-type]
 
     async def info(self, line: str) -> None:
         self.infos.append(line)
@@ -86,7 +86,7 @@ def test_host_request_cancellation_cancels_active_agent_api_session() -> None:
         timestamp=datetime.now(UTC),
     )
     client = FakeApiClient(FakeStream(status=TrajectoryStatus.COMPLETED, to_yield=[event]))
-    state = Lifespan(client=client, daemon=None)  # type: ignore[arg-type]
+    state = Lifespan(client=client, runtime=None)  # type: ignore[arg-type]
 
     async def cancelled_info(line: str) -> None:
         raise asyncio.CancelledError
@@ -107,7 +107,7 @@ def test_host_request_cancellation_cancels_active_agent_api_session() -> None:
 def test_lifespan_shutdown_cancels_active_agent_api_sessions() -> None:
     client = FakeApiClient(FakeStream(status=TrajectoryStatus.COMPLETED))
     active = Session(session_id=SESSION_ID, next_index=4)
-    state = Lifespan(client=client, daemon=None)  # type: ignore[arg-type]
+    state = Lifespan(client=client, runtime=None)  # type: ignore[arg-type]
     state.active_session = active
 
     asyncio.run(mcp_mod._cancel_active_sessions_best_effort(state))

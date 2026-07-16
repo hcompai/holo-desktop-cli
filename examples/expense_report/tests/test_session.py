@@ -10,21 +10,18 @@ from __future__ import annotations
 import json
 import shutil
 import socket
-import sys
 from pathlib import Path
 
 import pytest
 from agp_types import TrajectoryStatus
-from holo_desktop.agent_client import launcher, runtime_install
+from hai_agents.local.install import installed_binary
+from hai_agents.local.manifest import BINARY_NAME, PINNED_RUNTIME_VERSION
 from holo_desktop.agent_client.session_runner import TurnOutcome
 from holo_desktop.settings import AUTH_TOKEN_ENV
 
 from expense_report_demo.session import Runtime, RuntimeConfig, TaskResult, _project_result
 
-_RUNTIME_AVAILABLE = (
-    shutil.which("hai-agent-runtime") is not None
-    or runtime_install.installed_binary(runtime_install.PINNED_RUNTIME_VERSION) is not None
-)
+_RUNTIME_AVAILABLE = shutil.which(BINARY_NAME) is not None or installed_binary(PINNED_RUNTIME_VERSION) is not None
 
 needs_runtime = pytest.mark.skipif(not _RUNTIME_AVAILABLE, reason="hai-agent-runtime binary not installed")
 
@@ -82,13 +79,10 @@ def test_runtime_attaches_to_fake_server_non_fake(
     monkeypatch: pytest.MonkeyPatch, fake_agent_server: int, tmp_path: Path
 ) -> None:
     """Non-fake `Runtime` against a fake agent server: exercises the real
-    `require_api_key(settings=)` and `ensure_running(settings=)` wiring without
+    `require_api_key(settings=)` and `ensure_local_runtime(settings=)` wiring without
     the runtime binary."""
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
     monkeypatch.setenv("HAI_API_KEY", "test-key")  # satisfy require_api_key without interactive login
-    # Crash-only stub: attaching to the live server must never fall through to spawning a binary.
-    monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, "-c", "raise SystemExit(2)"])
-
     config = RuntimeConfig(port=fake_agent_server, model=None, base_url=None, fake=False)
     with Runtime(config) as runtime:
         result = runtime.run_task(

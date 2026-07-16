@@ -4,12 +4,27 @@ from __future__ import annotations
 
 import argparse
 
+from hai_agents.local import LocalRuntime, LocalRuntimeError
 from rich.console import Console
+from rich.prompt import Confirm
 
-from holo_desktop.agent_client.runtime_install import RuntimeArtifactUnavailable, ensure_managed_runtime
+from holo_desktop.agent_client.sdk_runtime import SpawnConfig, ensure_local_runtime
 from holo_desktop.cli.bootstrap import load_holo_env
 from holo_desktop.customization import seed_bundled_skills
-from holo_desktop.settings import load_holo_settings
+from holo_desktop.settings import HoloSettings, load_holo_settings
+
+
+def _runtime_for_installer(*, settings: HoloSettings, assume_yes: bool) -> LocalRuntime:
+    """Attach to or start the SDK-managed runtime used by the installed CLI."""
+    existing = LocalRuntime.attach(port=settings.runtime.port)
+    if existing is not None:
+        return existing
+    if not assume_yes and not Confirm.ask("Download and start hai-agent-runtime?", default=True):
+        raise LocalRuntimeError("hai-agent-runtime download declined")
+    return ensure_local_runtime(
+        SpawnConfig(port=settings.runtime.port, require_fresh_for_config=False),
+        settings=settings,
+    )
 
 
 def bootstrap_installer(*, yes: bool = False, login: bool = False, install_hosts: bool = False) -> None:
@@ -19,11 +34,11 @@ def bootstrap_installer(*, yes: bool = False, login: bool = False, install_hosts
     settings = load_holo_settings()
     seed_bundled_skills()
     try:
-        runtime_path = ensure_managed_runtime(settings=settings.install, assume_yes=yes)
-    except RuntimeArtifactUnavailable as exc:
+        runtime = _runtime_for_installer(settings=settings, assume_yes=yes)
+    except LocalRuntimeError as exc:
         err.print(f"[bold red]x[/bold red] {exc}")
         raise SystemExit(1) from exc
-    err.print(f"[green]ok[/green] runtime ready: [cyan]{runtime_path}[/cyan]")
+    err.print(f"[green]ok[/green] runtime ready: [cyan]{runtime.base_url}[/cyan]")
 
     if login:
         from holo_desktop.cli.login import login as run_login

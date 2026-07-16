@@ -16,7 +16,8 @@ from types import TracebackType
 from typing import Literal
 
 from agp_types import TrajectoryEvent, TrajectoryStatus
-from holo_desktop.agent_client import AgentApiClient, AgentDaemon, SpawnConfig, ensure_running
+from hai_agents.local import LocalRuntime
+from holo_desktop.agent_client import AgentApiClient, SpawnConfig, ensure_local_runtime
 from holo_desktop.agent_client.events import is_policy_event
 from holo_desktop.agent_client.session_runner import Session, TurnOutcome, run_turn
 from holo_desktop.cli.bootstrap import load_holo_env, require_api_key
@@ -63,7 +64,7 @@ class Runtime:
 
     def __init__(self, config: RuntimeConfig) -> None:
         self._config = config
-        self._daemon: AgentDaemon | None = None
+        self._runtime: LocalRuntime | None = None
 
     def __enter__(self) -> Runtime:
         # Per-request HTTP logs are implementation detail, not run output.
@@ -72,16 +73,14 @@ class Runtime:
         settings = load_holo_settings()
         if not self._config.fake:
             require_api_key(explicit_base_url=self._config.base_url, settings=settings)
-        self._daemon = asyncio.run(
-            ensure_running(
-                SpawnConfig(
-                    port=self._config.port,
-                    model=self._config.model,
-                    base_url=self._config.base_url,
-                    fake=self._config.fake,
-                ),
-                settings=settings,
-            )
+        self._runtime = ensure_local_runtime(
+            SpawnConfig(
+                port=self._config.port,
+                model=self._config.model,
+                base_url=self._config.base_url,
+                fake=self._config.fake,
+            ),
+            settings=settings,
         )
         return self
 
@@ -91,21 +90,26 @@ class Runtime:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        daemon = self._daemon
-        self._daemon = None
-        if daemon is not None:
-            asyncio.run(daemon.aclose())
+        runtime = self._runtime
+        self._runtime = None
+        if runtime is not None and runtime.owned:
+            runtime.shutdown()
+
+    @property
+    def log_path(self) -> Path | None:
+        """Runtime stderr log, when the SDK owns or discovered one."""
+        return self._runtime.log_path if self._runtime is not None else None
 
     def run_task(
         self, *, task: str, max_steps: int, max_time_s: float, events_path: Path, expand_feed: bool
     ) -> TaskResult:
         """Run one session to end-of-turn, persisting every event to `events_path`."""
-        daemon = self._daemon
-        if daemon is None:
+        runtime = self._runtime
+        if runtime is None:
             raise RuntimeError("Runtime.run_task called outside the Runtime context")
         return asyncio.run(
             _drive(
-                daemon,
+                runtime,
                 task=task,
                 max_steps=max_steps,
                 max_time_s=max_time_s,
@@ -134,7 +138,7 @@ def _project_result(outcome: TurnOutcome, *, n_steps: int) -> TaskResult:
 
 
 async def _drive(
-    daemon: AgentDaemon,
+    runtime: LocalRuntime,
     *,
     task: str,
     max_steps: int,
@@ -145,7 +149,7 @@ async def _drive(
     events_path.parent.mkdir(parents=True, exist_ok=True)
     feed = LiveFeed(Console(stderr=True), expand=expand_feed)
     n_steps = 0
-    async with AgentApiClient(daemon.base_url, daemon.token) as client:
+    async with AgentApiClient(runtime) as client:
         session = Session()
         with events_path.open("w", encoding="utf-8") as sink:
 

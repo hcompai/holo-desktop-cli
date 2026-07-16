@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import importlib
-import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,10 +16,8 @@ from threading import Thread
 
 import pytest
 
-from holo_desktop.agent_client import launcher
-from holo_desktop.agent_client.launcher import AUTH_TOKEN_ENV, PORT_ENV
 from holo_desktop.cli.serve import HoloExecutor
-from holo_desktop.settings import load_holo_settings
+from holo_desktop.settings import AUTH_TOKEN_ENV, PORT_ENV, load_holo_settings
 
 serve_mod = importlib.import_module("holo_desktop.cli.serve")
 
@@ -49,13 +46,15 @@ def _fake_agent_server() -> Iterator[int]:
 @pytest.mark.timeout(60)
 def test_executor_attaches_to_port_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
-    # Crash-only stub: a wrong-port spawn attempt must die loudly, never reach a real binary.
-    monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, "-c", "raise SystemExit(2)"])
+    # Crash-only guard: if the executor ignores the env port it tries to spawn on
+    # the default port; pointing the SDK's binary override at a missing file makes
+    # that die loudly — never fall through to a real binary on PATH.
+    monkeypatch.setenv("HAI_AGENT_LOCAL_BINARY_PATH", "/nonexistent/spawn-attempted")
 
     async def startup_and_shutdown(executor: HoloExecutor) -> str:
         await executor.startup()
-        assert executor._daemon is not None
-        base_url = executor._daemon.base_url
+        assert executor._runtime is not None
+        base_url = executor._runtime.base_url
         await executor.shutdown()
         return base_url
 

@@ -40,12 +40,13 @@ from acp.schema import (
 )
 from agent_interface.agent_events import ErrorEvent, PolicyEvent, ToolResultEvent
 from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents.local import LocalRuntime
 from pydantic import JsonValue
 
 from holo_desktop import __version__
 from holo_desktop.agent_client.client import AgentApiClient
 from holo_desktop.agent_client.events import PolicyView, parse_agent_event
-from holo_desktop.agent_client.launcher import AgentDaemon, ensure_running_from_env
+from holo_desktop.agent_client.sdk_runtime import ensure_local_runtime_from_env
 from holo_desktop.agent_client.session_runner import (
     DEFAULT_INTERACTIVE_IDLE_TIMEOUT_S,
     DEFAULT_MAX_STEPS,
@@ -68,7 +69,7 @@ class HoloAcpAgent:
 
     def __init__(self) -> None:
         self._sessions: OrderedDict[str, Session] = OrderedDict()
-        self._daemon: AgentDaemon | None = None
+        self._runtime: LocalRuntime | None = None
         self._client: AgentApiClient | None = None
         self._api_lock = asyncio.Lock()
         self._cancelled: set[str] = set()
@@ -80,8 +81,9 @@ class HoloAcpAgent:
         if self._client is None:
             async with self._api_lock:
                 if self._client is None:
-                    self._daemon = await ensure_running_from_env()
-                    self._client = AgentApiClient(self._daemon.base_url, self._daemon.token)
+                    # May download the runtime on first run; keep that off the event loop.
+                    self._runtime = await asyncio.to_thread(ensure_local_runtime_from_env)
+                    self._client = AgentApiClient(self._runtime)
         return self._client
 
     async def initialize(
@@ -263,8 +265,9 @@ class HoloAcpAgent:
             for session in list(self._sessions.values()):
                 await self._cancel_session(session)
             await self._client.aclose()
-        if self._daemon is not None:
-            await self._daemon.aclose()
+        # Stop the runtime only if this server spawned it; attached runtimes belong to their spawner.
+        if self._runtime is not None and self._runtime.owned:
+            await asyncio.to_thread(self._runtime.shutdown)
 
 
 def _stringify(result: JsonValue) -> str:
