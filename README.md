@@ -163,6 +163,7 @@ Each host gets the MCP server in its config, plus a [Skill](https://docs.claude.
 | `codex`         | [Codex](https://github.com/openai/codex)                        | `~/.agents/skills/`          |
 | `copilot`       | [GitHub Copilot CLI](https://github.com/github/copilot-cli)     | —                            |
 | `cursor`        | [Cursor](https://cursor.com)                                    | —                            |
+| `grok-build`    | [Grok Build](https://github.com/xai-org/grok-build) (xAI)       | `~/.grok/skills/`            |
 | `hermes`        | [Hermes](https://nousresearch.com)                              | —                            |
 | `nemoclaw`      | NemoClaw (sandbox bridge)                                       | —                            |
 | `openclaw`      | [OpenClaw](https://github.com/openclaw/openclaw)                | `~/.openclaw/skills/`        |

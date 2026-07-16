@@ -236,6 +236,13 @@ CLIENTS: dict[str, Client] = {
         key_path=("mcpServers", BINARY),
         leaf={"type": "stdio", "command": BINARY, "args": ["mcp"]},
     ),
+    "grok-build": Client(
+        name="Grok Build (xAI)",
+        # `grok mcp add` upserts into ~/.grok/config.toml (TOML, so no JSON/YAML merge for us).
+        cli_cmd=("grok", "mcp", "add", BINARY, "--", BINARY, "mcp"),
+        skills_dir=".grok/skills",
+        home_marker=".grok",
+    ),
     "hermes": Client(
         name="Hermes (NousResearch)",
         config_path="~/.hermes/config.yaml",

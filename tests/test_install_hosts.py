@@ -202,6 +202,30 @@ def test_cli_host_absent_when_binary_missing(sandbox_home: Path, monkeypatch: py
     assert status is hosts.Status.ABSENT
 
 
+def test_grok_build_is_registered_as_cli_host() -> None:
+    client = hosts.CLIENTS["grok-build"]
+
+    assert client.cli_cmd == ("grok", "mcp", "add", "holo", "--", "holo", "mcp")
+    assert client.skills_dir == ".grok/skills"
+    assert client.home_marker == ".grok"
+    assert client.config_path is None
+
+
+def test_grok_build_cli_add_rewrites_binary_after_separator(
+    sandbox_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _stub_cli(monkeypatch, result=None)
+    status, _ = hosts.wire_mcp(hosts.CLIENTS["grok-build"])
+    assert status is hosts.Status.INSTALLED
+
+    argv = calls[0]
+    assert argv[0] == "/usr/local/bin/grok"
+    sep = argv.index("--")
+    # The server name before `--` stays bare; `grok mcp add` upserts, so reruns exit 0.
+    assert argv[:sep] == ["/usr/local/bin/grok", "mcp", "add", "holo"]
+    assert argv[sep + 1 :] == [FAKE_HOLO, "mcp"]
+
+
 def test_custom_wire_host_delegates_without_generic_mcp_or_skill(sandbox_home: Path) -> None:
     calls: list[str] = []
     client = hosts.Client(
@@ -253,6 +277,19 @@ def test_skill_idempotent_rerun_skips(sandbox_home: Path) -> None:
     _seed_marker(sandbox_home, client)
     assert hosts.wire_skill(client)[0] is hosts.Status.INSTALLED
     assert hosts.wire_skill(client)[0] is hosts.Status.SKIPPED
+
+
+def test_grok_build_skill_symlink_created_when_host_present(sandbox_home: Path) -> None:
+    client = hosts.CLIENTS["grok-build"]
+    _seed_marker(sandbox_home, client)
+
+    status, _ = hosts.wire_skill(client)
+    assert status is hosts.Status.INSTALLED
+
+    # Grok Build's skill walker follows symlinks (`Path::is_dir()`), so a link is enough.
+    link = sandbox_home / ".grok" / "skills" / hosts.SKILL_NAME
+    assert link.is_symlink()
+    assert (link / "SKILL.md").exists()
 
 
 def test_skill_absent_when_host_not_installed(sandbox_home: Path) -> None:
