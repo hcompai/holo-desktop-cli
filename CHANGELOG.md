@@ -4,10 +4,6 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
-
-- **Grok Build host.** `holo install grok-build` wires the MCP server into [Grok Build](https://github.com/xai-org/grok-build) (xAI) via `grok mcp add` and auto-loads the bundled `holo-desktop` skill from `~/.grok/skills/`.
-
 ## [0.0.1] - Unreleased
 
 Initial public release.
