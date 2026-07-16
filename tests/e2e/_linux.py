@@ -116,10 +116,24 @@ def cleanup_desktop_artifacts() -> None:
                 path.unlink(missing_ok=True)
 
 
-def cleanup_process(name: str) -> None:
+def cleanup_process(name: str, *, timeout: float = 5.0) -> None:
     with suppress(FileNotFoundError, subprocess.TimeoutExpired):
-        subprocess.run(["pkill", "-x", name], capture_output=True, check=False, timeout=5.0)
-    time.sleep(0.1)
+        subprocess.run(["pkill", "-TERM", "-x", name], capture_output=True, check=False, timeout=5.0)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        running = _run(["pgrep", "-x", name], timeout=2.0)
+        if running.returncode != 0:
+            return
+        time.sleep(0.1)
+    with suppress(FileNotFoundError, subprocess.TimeoutExpired):
+        subprocess.run(["pkill", "-KILL", "-x", name], capture_output=True, check=False, timeout=5.0)
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        running = _run(["pgrep", "-x", name], timeout=2.0)
+        if running.returncode != 0:
+            return
+        time.sleep(0.1)
+    raise RuntimeError(f"failed to stop Linux process {name!r}; remaining pids: {running.stdout.strip()}")
 
 
 def cleanup_editor_and_desktop() -> None:
@@ -146,13 +160,22 @@ def cleanup_chrome() -> None:
     profile = Path(os.environ.get("HOLO_E2E_CHROME_PROFILE", "/tmp/holo-e2e-chrome-profile"))
     with suppress(FileNotFoundError, subprocess.TimeoutExpired):
         subprocess.run(
-            ["pkill", "-f", f"--user-data-dir={profile}"],
+            ["pkill", "-TERM", "-f", f"--user-data-dir={profile}"],
             capture_output=True,
             check=False,
             timeout=5.0,
         )
+    cleanup_process("chrome")
+    cleanup_process("google-chrome")
     shutil.rmtree(profile, ignore_errors=True)
     profile.mkdir(parents=True, exist_ok=True)
+
+
+def cleanup_test_apps() -> None:
+    cleanup_process("mousepad")
+    cleanup_process("thunar")
+    cleanup_process("kcalc")
+    cleanup_chrome()
 
 
 def opened_file_window(filename: str, titles: list[str] | None = None) -> str | None:

@@ -52,6 +52,7 @@ class LinuxEnvironmentRunner:
         }.get(case.app_family)
         if command is not None:
             _linux.require_app(command)
+        _linux.cleanup_test_apps()
 
     def prepare(self, case: TaskCase, workspace: Path) -> PreparedTask:
         if case == FOREGROUND_VISIBLE_EDITOR_WITNESS:
