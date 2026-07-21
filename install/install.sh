@@ -35,6 +35,32 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
+linux_build_prerequisites_present() {
+  command -v cc >/dev/null 2>&1 &&
+    [ -f /usr/include/linux/input.h ] &&
+    [ -f /usr/include/linux/input-event-codes.h ]
+}
+
+ensure_linux_build_prerequisites() {
+  [ "$PLATFORM" = "linux-x86_64" ] || return 0
+  linux_build_prerequisites_present && return 0
+
+  command -v apt-get >/dev/null 2>&1 || fail "Linux installation requires a C compiler and Linux input headers. Install your distribution's compiler toolchain and Linux API headers, then rerun the installer."
+
+  info "Installing Linux prerequisites: build-essential linux-libc-dev"
+  if [ "$(id -u)" -eq 0 ]; then
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends build-essential linux-libc-dev
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo apt-get update -qq
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends build-essential linux-libc-dev
+  else
+    fail "Linux installation requires build-essential and linux-libc-dev. Install them as root, then rerun the installer."
+  fi
+
+  linux_build_prerequisites_present || fail "Linux prerequisites were installed, but the C compiler or Linux input headers are still unavailable."
+}
+
 download() {
   url="$1"
   dest="$2"
@@ -130,6 +156,8 @@ PACKAGE_SPEC="${HOLO_INSTALL_PACKAGE:-holo-desktop-cli==$HOLO_VERSION}"
 [ -n "$PYTHON_VERSION" ] || fail "manifest did not include python_version"
 [ -n "$UV_URL" ] || fail "manifest did not include uv_url for $PLATFORM"
 [ -n "$UV_SHA256" ] || fail "manifest did not include uv_sha256 for $PLATFORM"
+
+ensure_linux_build_prerequisites
 
 UV_ARCHIVE="$INSTALL_TMP/uv.tar.gz"
 UV_EXTRACT="$INSTALL_TMP/uv"
