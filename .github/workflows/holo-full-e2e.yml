@@ -267,6 +267,20 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
+      - name: Install Linux candidate through shell installer
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          HOLO_HOME: ${{ runner.temp }}/holo-installer-smoke
+          HOLO_INSTALL_MANIFEST_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/install/manifest.json
+          HOLO_INSTALL_PACKAGE: ${{ github.workspace }}
+          HOLO_INSTALL_SKIP_PATH: "1"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/install/install.sh" | bash
+          "$HOLO_HOME/bin/holo" --help
+
       - name: List full e2e shard task ids
         shell: bash
         run: |

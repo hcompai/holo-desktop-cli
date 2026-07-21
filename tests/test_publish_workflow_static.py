@@ -26,6 +26,9 @@ def test_publish_workflow_uploads_installer_assets_after_release() -> None:
     assert "--cache-control" in rendered
     assert "--content-type text/x-shellscript" in rendered
     assert "--content-type application/json" in rendered
+    smoke_step = next(step for step in job["steps"] if step.get("name") == "Smoke Linux installer from CDN")
+    assert 'curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | bash' in smoke_step["run"]
+    assert '"$HOLO_HOME/bin/holo" --help' in smoke_step["run"]
 
 
 def test_release_job_checks_out_installer_assets_before_github_release() -> None:
@@ -38,3 +41,19 @@ def test_release_job_checks_out_installer_assets_before_github_release() -> None
     assert "install/install.sh" in release_step["with"]["files"]
     assert "install/install.ps1" in release_step["with"]["files"]
     assert "install/manifest.json" in release_step["with"]["files"]
+
+
+def test_linux_live_workflows_install_the_pull_request_candidate() -> None:
+    for relative_path in (
+        ".github/workflows/holo-live-smoke.yml",
+        ".github/workflows/holo-full-e2e.yml",
+    ):
+        workflow = (ROOT / relative_path).read_text(encoding="utf-8")
+        assert "Install Linux candidate through shell installer" in workflow
+        assert "HOLO_INSTALL_MANIFEST_URL" in workflow
+        assert "HOLO_INSTALL_PACKAGE" in workflow
+        assert (
+            'curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/install/install.sh" | bash'
+            in workflow
+        )
+        assert '"$HOLO_HOME/bin/holo" --help' in workflow
