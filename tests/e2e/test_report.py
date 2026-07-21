@@ -233,11 +233,20 @@ def test_write_platform_report_writes_summary_json_markdown_and_jsonl(tmp_path: 
 def test_task_ids_for_platform_returns_registered_runner_tasks() -> None:
     macos_ids = task_ids_for_platform("darwin")
     windows_ids = task_ids_for_platform("win32")
+    linux_ids = task_ids_for_platform("linux")
 
     assert macos_ids == STABLE_CI_TASK_IDS
     assert windows_ids == STABLE_CI_TASK_IDS
+    assert linux_ids == STABLE_CI_TASK_IDS
     assert macos_ids == sorted(macos_ids)
     assert windows_ids == sorted(windows_ids)
+    assert linux_ids == sorted(linux_ids)
+
+
+def test_missing_linux_task_uses_linux_environment_identity(tmp_path: Path) -> None:
+    [result] = ensure_expected_task_results(tmp_path, ["missing"], platform="Linux")
+
+    assert result.environment_id == "linux-foreground"
 
 
 def test_task_ids_for_shard_partition_without_overlap() -> None:

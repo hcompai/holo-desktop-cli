@@ -252,7 +252,7 @@ def test_ensure_managed_runtime_rejects_unimplemented_platform(
     runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _clear_resolution_env(monkeypatch, tmp_path)
-    monkeypatch.setattr(runtime_install, "platform_key", lambda: "linux-x86_64")
+    monkeypatch.setattr(runtime_install, "platform_key", lambda: "darwin-x86_64")
     with pytest.raises(runtime_install.RuntimeArtifactUnavailable, match="not published"):
         runtime_install.ensure_managed_runtime(settings=RuntimeInstallSettings(), assume_yes=True)
 
@@ -262,6 +262,7 @@ def test_ensure_managed_runtime_rejects_unimplemented_platform(
     [
         ("darwin-arm64", ".zip"),
         ("windows-x86_64", ".zip"),
+        ("linux-x86_64", ".zip"),
     ],
 )
 def test_published_manifest_entry_is_real(platform_key: str, suffix: str) -> None:
@@ -299,7 +300,7 @@ def test_pinned_artifact_is_published_and_matches_sha(platform_key: str) -> None
     assert digest.hexdigest() == artifact.sha256.lower(), f"published bytes do not match pinned sha for {platform_key}"
 
 
-@pytest.mark.parametrize("platform_key", ["darwin-x86_64", "linux-x86_64"])
+@pytest.mark.parametrize("platform_key", ["darwin-x86_64"])
 def test_unimplemented_platform_refuses_install(
     platform_key: str, runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -312,7 +313,7 @@ def test_unimplemented_platform_refuses_install(
     assert installed_binary(PINNED_RUNTIME_VERSION) is None
 
 
-@pytest.mark.parametrize("platform_key", ["darwin-x86_64", "linux-x86_64"])
+@pytest.mark.parametrize("platform_key", ["darwin-x86_64"])
 def test_resolve_fails_before_prompting_on_unimplemented_platform(
     platform_key: str, runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

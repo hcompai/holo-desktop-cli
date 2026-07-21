@@ -407,6 +407,8 @@ def _write_review_bundle(summaries: list[TaskSmokeSummary], *, root: Path, outpu
             "platform.json",
         ):
             _copy_review_file(summary.task_dir / name, output_dir / f"{prefix}{name}")
+        for runtime_log in sorted(summary.task_dir.glob("runtime*.log")):
+            _copy_review_file(runtime_log, output_dir / f"{prefix}{runtime_log.name}")
 
 
 def _copy_if_exists(source: Path, destination: Path) -> None:

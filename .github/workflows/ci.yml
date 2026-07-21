@@ -9,6 +9,42 @@ permissions:
   contents: read
 
 jobs:
+  linux-installer:
+    name: fresh Linux installer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from a minimal Ubuntu image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --platform linux/amd64 \
+            -v "$GITHUB_WORKSPACE:/work:ro" \
+            -w /tmp \
+            ubuntu:22.04 \
+            bash -c '
+              set -euo pipefail
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl sudo >/dev/null
+              test ! -e /usr/include/linux/input.h
+              useradd --create-home --shell /bin/bash holo
+              printf "holo ALL=(ALL) NOPASSWD:ALL\n" >/etc/sudoers.d/holo
+              sudo -u holo env \
+                HOME=/home/holo \
+                HOLO_HOME=/home/holo/.holo-install \
+                HOLO_INSTALL_MANIFEST_URL=file:///work/install/manifest.json \
+                HOLO_INSTALL_PACKAGE=/work \
+                HOLO_INSTALL_SKIP_PATH=1 \
+                bash -c "
+                  set -euo pipefail
+                  cd /tmp
+                  curl -fsSL file:///work/install/install.sh | bash
+                  \"\$HOLO_HOME/bin/holo\" --help >/dev/null
+                  test -x \"\$HOME/.holo/runtime/0.1.9/hai-agent-runtime\"
+                "
+              test -e /usr/include/linux/input.h
+            '
+
   python:
     strategy:
       fail-fast: false

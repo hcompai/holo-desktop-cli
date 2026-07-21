@@ -25,7 +25,7 @@ platform_key() {
   case "$system:$machine" in
     Darwin:arm64) printf 'darwin-arm64' ;;
     Darwin:x86_64) fail "Holo Desktop installer does not support darwin-x86_64 yet because hai-agent-runtime is not published for macOS Intel yet." ;;
-    Linux:x86_64) fail "Holo Desktop installer does not support linux-x86_64 yet because hai-agent-runtime is not published for Linux yet." ;;
+    Linux:x86_64) printf 'linux-x86_64' ;;
     Linux:*) fail "Holo Desktop installer does not support linux-$machine yet because hai-agent-runtime is not published for Linux yet." ;;
     *) fail "Holo Desktop installer does not support $system-$machine yet." ;;
   esac
@@ -33,6 +33,32 @@ platform_key() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
+}
+
+linux_build_prerequisites_present() {
+  command -v cc >/dev/null 2>&1 &&
+    [ -f /usr/include/linux/input.h ] &&
+    [ -f /usr/include/linux/input-event-codes.h ]
+}
+
+ensure_linux_build_prerequisites() {
+  [ "$PLATFORM" = "linux-x86_64" ] || return 0
+  linux_build_prerequisites_present && return 0
+
+  command -v apt-get >/dev/null 2>&1 || fail "Linux installation requires a C compiler and Linux input headers. Install your distribution's compiler toolchain and Linux API headers, then rerun the installer."
+
+  info "Installing Linux prerequisites: build-essential linux-libc-dev"
+  if [ "$(id -u)" -eq 0 ]; then
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends build-essential linux-libc-dev
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo apt-get update -qq
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends build-essential linux-libc-dev
+  else
+    fail "Linux installation requires build-essential and linux-libc-dev. Install them as root, then rerun the installer."
+  fi
+
+  linux_build_prerequisites_present || fail "Linux prerequisites were installed, but the C compiler or Linux input headers are still unavailable."
 }
 
 download() {
@@ -75,7 +101,13 @@ PY
 }
 
 append_path_block() {
-  rc_file="$HOME/.zshrc"
+  # Write to the rc file the login shell actually sources: zsh on macOS,
+  # bash on most Linux; fall back to .profile for anything else.
+  case "${SHELL:-}" in
+    */zsh) rc_file="$HOME/.zshrc" ;;
+    */bash) rc_file="$HOME/.bashrc" ;;
+    *) rc_file="$HOME/.profile" ;;
+  esac
   path_line="export PATH=\"$HOLO_HOME/bin:\$PATH\""
   mkdir -p "$(dirname "$rc_file")"
   touch "$rc_file"
@@ -87,15 +119,24 @@ append_path_block() {
   fi
 }
 
+sha256_of() {
+  # sha256sum ships with coreutils on Linux; macOS has shasum instead.
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
 verify_sha256() {
   file="$1"
   expected="$2"
-  actual="$(shasum -a 256 "$file" | awk '{print $1}')"
+  actual="$(sha256_of "$file")"
   [ "$actual" = "$expected" ] || fail "sha256 mismatch for $file: expected $expected, got $actual"
 }
 
 need_cmd curl
-need_cmd shasum
+command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 || fail "missing required command: sha256sum or shasum"
 need_cmd tar
 
 PLATFORM="$(platform_key)"
@@ -115,6 +156,8 @@ PACKAGE_SPEC="${HOLO_INSTALL_PACKAGE:-holo-desktop-cli==$HOLO_VERSION}"
 [ -n "$PYTHON_VERSION" ] || fail "manifest did not include python_version"
 [ -n "$UV_URL" ] || fail "manifest did not include uv_url for $PLATFORM"
 [ -n "$UV_SHA256" ] || fail "manifest did not include uv_sha256 for $PLATFORM"
+
+ensure_linux_build_prerequisites
 
 UV_ARCHIVE="$INSTALL_TMP/uv.tar.gz"
 UV_EXTRACT="$INSTALL_TMP/uv"

@@ -15,14 +15,17 @@ from holo_desktop.agent_client import runtime_install
 REAL_SOURCE = Path(runtime_install.__file__).read_text()
 NEW_DARWIN = "a" * 64
 NEW_WINDOWS = "b" * 64
+NEW_LINUX = "c" * 64
+# A full bump must cover every published platform in the manifest.
+ALL_SHAS = {"darwin-arm64": NEW_DARWIN, "windows-x86_64": NEW_WINDOWS, "linux-x86_64": NEW_LINUX}
 
 
 def test_apply_bump_rewrites_version_and_digests() -> None:
-    bump = RuntimeBump(version="0.2.0", shas={"darwin-arm64": NEW_DARWIN, "windows-x86_64": NEW_WINDOWS})
+    bump = RuntimeBump(version="0.2.0", shas=dict(ALL_SHAS))
     result = apply_bump(REAL_SOURCE, bump)
 
     assert 'PINNED_RUNTIME_VERSION = "0.2.0"' in result
-    assert NEW_DARWIN in result and NEW_WINDOWS in result
+    assert NEW_DARWIN in result and NEW_WINDOWS in result and NEW_LINUX in result
     # The version literal must not appear duplicated in any artifact URL (URLs are derived).
     assert result.count('PINNED_RUNTIME_VERSION = "') == 1
     # Untouched platform digests of the original must be gone (both were replaced).
@@ -30,7 +33,7 @@ def test_apply_bump_rewrites_version_and_digests() -> None:
 
 
 def test_apply_bump_keeps_each_digest_with_its_platform() -> None:
-    bump = RuntimeBump(version="0.2.0", shas={"darwin-arm64": NEW_DARWIN, "windows-x86_64": NEW_WINDOWS})
+    bump = RuntimeBump(version="0.2.0", shas=dict(ALL_SHAS))
     result = apply_bump(REAL_SOURCE, bump)
 
     darwin_idx = result.index("hai-agent-runtime-darwin-arm64.zip")
@@ -46,8 +49,10 @@ def test_apply_bump_rejects_non_hex_sha() -> None:
 
 
 def test_apply_bump_raises_when_platform_filename_absent() -> None:
-    bump = RuntimeBump(version="0.2.0", shas={"linux-x86_64": "c" * 64})
-    with pytest.raises(ValueError, match="linux-x86_64"):
+    # darwin-x86_64 (macOS Intel) has no published manifest entry, so a bump
+    # targeting it has nowhere to write and must be refused.
+    bump = RuntimeBump(version="0.2.0", shas={"darwin-x86_64": "c" * 64})
+    with pytest.raises(ValueError, match="darwin-x86_64"):
         apply_bump(REAL_SOURCE, bump)
 
 

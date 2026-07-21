@@ -12,7 +12,7 @@ INSTALL_DIR = ROOT / "install"
 
 def test_manifest_supports_only_v1_platforms_with_real_hashes() -> None:
     manifest = json.loads((INSTALL_DIR / "manifest.json").read_text())
-    assert set(manifest["supported_platforms"]) == {"darwin-arm64", "windows-x86_64"}
+    assert set(manifest["supported_platforms"]) == {"darwin-arm64", "windows-x86_64", "linux-x86_64"}
     assert manifest["holo_version"] == "0.0.2"
     assert manifest["python_version"] == "3.12"
     for entry in manifest["supported_platforms"].values():

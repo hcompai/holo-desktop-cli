@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import socket
 import subprocess
 import sys
@@ -11,9 +12,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, TextIO
 
+from holo_desktop.agent_client.launcher import runtime_log_path
+
 from .conftest import HoloLiveConfig
 
 _EVENT_LOG_RE = re.compile(r"events streamed to\s+(.+)")
+TIMEOUT_SHUTDOWN_GRACE_S = 10.0
 
 
 def free_port() -> int:
@@ -69,6 +73,7 @@ class HoloRunResult:
     stderr: str
     duration_s: float
     event_log_path: Path | None
+    runtime_log_path: Path | None = None
 
 
 def run_holo_foreground(
@@ -87,6 +92,7 @@ def run_holo_foreground(
         subprocess_timeout_s=config.timeout_s,
     )
     port = free_port()
+    agent_runtime_log_path = runtime_log_path(port)
     command = [
         "uv",
         "run",
@@ -120,6 +126,7 @@ def run_holo_foreground(
             return _run_holo_captured(
                 command=command,
                 runs_dir=runs_dir,
+                agent_runtime_log_path=agent_runtime_log_path,
                 timeout_s=config.timeout_s,
                 start=start,
             )
@@ -141,10 +148,9 @@ def run_holo_foreground(
     try:
         exit_code = proc.wait(timeout=config.timeout_s)
     except subprocess.TimeoutExpired:
-        proc.kill()
+        cleanup = _graceful_timeout_cleanup(proc)
         exit_code = 124
-        stderr_chunks.append(f"\nTimed out after {config.timeout_s}s")
-        proc.wait()
+        stderr_chunks.append(f"\nTimed out after {config.timeout_s}s; {cleanup}")
     finally:
         kill_port_listener(port)
     stdout_thread.join(timeout=1.0)
@@ -159,6 +165,7 @@ def run_holo_foreground(
         stderr=stderr,
         duration_s=duration,
         event_log_path=find_event_log_path(stderr) or find_latest_event_log(runs_dir),
+        runtime_log_path=agent_runtime_log_path if agent_runtime_log_path.exists() else None,
     )
 
 
@@ -166,6 +173,7 @@ def _run_holo_captured(
     *,
     command: list[str],
     runs_dir: Path,
+    agent_runtime_log_path: Path,
     timeout_s: float,
     start: float,
 ) -> HoloRunResult:
@@ -190,6 +198,7 @@ def _run_holo_captured(
             stderr=stderr,
             duration_s=duration,
             event_log_path=find_event_log_path(stderr) or find_latest_event_log(runs_dir),
+            runtime_log_path=agent_runtime_log_path if agent_runtime_log_path.exists() else None,
         )
     duration = time.monotonic() - start
     event_log_path = find_event_log_path(proc.stderr) or find_latest_event_log(runs_dir)
@@ -200,7 +209,29 @@ def _run_holo_captured(
         stderr=proc.stderr,
         duration_s=duration,
         event_log_path=event_log_path,
+        runtime_log_path=agent_runtime_log_path if agent_runtime_log_path.exists() else None,
     )
+
+
+def _graceful_timeout_cleanup(proc: subprocess.Popen[str]) -> str:
+    """Ask ``holo run`` to cancel its session before resorting to a force-kill."""
+
+    try:
+        if os.name == "nt":
+            proc.terminate()
+            signal_name = "terminate"
+        else:
+            proc.send_signal(signal.SIGINT)
+            signal_name = "SIGINT"
+        proc.wait(timeout=TIMEOUT_SHUTDOWN_GRACE_S)
+        return f"{signal_name} cleanup completed"
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        return f"{signal_name} cleanup exceeded {TIMEOUT_SHUTDOWN_GRACE_S:g}s; force-killed"
+    except ProcessLookupError:
+        proc.wait()
+        return "process exited during timeout cleanup"
 
 
 def _tee_stream(

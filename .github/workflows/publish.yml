@@ -159,3 +159,26 @@ jobs:
           curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | head -n 5
           curl -fsSL "${INSTALLER_BASE_URL}/install.ps1" | head -n 5
           curl -fsSL "${INSTALLER_BASE_URL}/install/manifest.json" | python -m json.tool >/dev/null
+      - name: Smoke Linux installer from CDN
+        shell: bash
+        env:
+          HOME: ${{ runner.temp }}/holo-installer-home
+          HOLO_HOME: ${{ runner.temp }}/holo-installer-home/.holo
+          HOLO_INSTALL_SKIP_PATH: "1"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          for attempt in $(seq 1 11); do
+            rm -rf "$HOME"
+            mkdir -p "$HOME"
+            if curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | bash; then
+              "$HOLO_HOME/bin/holo" --help
+              exit 0
+            fi
+            if [ "$attempt" -lt 11 ]; then
+              echo "Installer CDN has not converged after attempt ${attempt}/11; retrying in 30 seconds"
+              sleep 30
+            fi
+          done
+          echo "Linux install from ${INSTALLER_BASE_URL}/install.sh failed after 11 attempts" >&2
+          exit 1

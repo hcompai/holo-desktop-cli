@@ -21,8 +21,9 @@ jobs:
         include:
           - os: macos-14
           - os: windows-latest
+          - os: ubuntu-22.04
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       AWS_REGION: us-west-2
       HAI_API_KEY_SECRET_ID: ${{ vars.HAI_API_KEY_SECRET_ID }}
@@ -31,6 +32,10 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Linux desktop
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/setup-linux-desktop
 
       - name: Log GitHub OIDC claims
         uses: actions/github-script@v7
@@ -200,6 +205,20 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
+      - name: Install Linux candidate through shell installer
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          HOLO_HOME: ${{ runner.temp }}/holo-installer-smoke
+          HOLO_INSTALL_MANIFEST_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/install/manifest.json
+          HOLO_INSTALL_PACKAGE: ${{ github.workspace }}
+          HOLO_INSTALL_SKIP_PATH: "1"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/install/install.sh" | bash
+          "$HOLO_HOME/bin/holo" --help
+
       - name: Run calculator live smoke
         id: run-calculator-live-smoke
         shell: bash
@@ -254,3 +273,11 @@ jobs:
           name: holo-live-smoke-${{ runner.os }}
           path: ~/.holo/e2e-review/
           if-no-files-found: error
+
+      - name: Upload Linux desktop logs
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: holo-live-smoke-Linux-desktop-logs
+          path: ${{ runner.temp }}/holo-linux-desktop-logs/
+          if-no-files-found: warn
