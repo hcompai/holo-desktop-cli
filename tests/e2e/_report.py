@@ -319,6 +319,8 @@ def _environment_id_for_platform(platform: str | None) -> str:
         return "macos-foreground"
     if platform == "Windows":
         return "windows-foreground"
+    if platform == "Linux":
+        return "linux-foreground"
     return "unknown"
 
 
@@ -368,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--platform")
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument("--append-step-summary", action="store_true")
-    parser.add_argument("--list-task-ids-for-platform", choices=["darwin", "win32"])
+    parser.add_argument("--list-task-ids-for-platform", choices=["darwin", "win32", "linux"])
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--shard-total", type=int)
     parser.add_argument("--append-task-summary", action="store_true")

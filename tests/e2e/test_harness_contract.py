@@ -1,20 +1,25 @@
 import json
+import os
+import signal
 import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from holo_desktop.settings import load_holo_settings
 
-from . import _harness, _macos
+from . import _harness, _macos, _runner
 from ._artifacts import E2EArtifacts, E2EResult
 from ._domain import EvaluationResult, FailureCategory, PreparedTask
 from ._environment import UnsupportedEnvironmentError, runner_for_platform
 from ._runner import HoloRunResult, find_event_log_path, find_latest_event_log, run_holo_foreground
 from .conftest import HoloLiveConfig, _selected_task_ids
 from .environments import windows as _windows
+from .environments.linux import LINUX_FOREGROUND_TASKS, LinuxEnvironmentRunner
 from .environments.macos import MACOS_FOREGROUND_TASKS
 from .environments.windows import WINDOWS_FOREGROUND_TASKS, WindowsEnvironmentRunner
+from .evaluators import linux as _linux_evaluators
 from .evaluators.browser import DownloadedFileEvaluator
 from .evaluators.calculator import CalculatorResultEvaluator, calculator_result_part
 from .evaluators.finder import CopiedFileEvaluator, OpenedFileEvaluator, ProtectedFileEvaluator
@@ -114,6 +119,8 @@ def test_holo_max_time_is_inside_subprocess_timeout(tmp_path: Path, monkeypatch:
 
 def test_run_and_evaluate_uses_live_timeout_for_holo_max_time(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     captured_max_time_s: float | None = None
+    runtime_log = tmp_path / "hai-agent-runtime.log"
+    runtime_log.write_text("Attempt #1 failed with APITimeoutError\n", encoding="utf-8")
 
     def fake_run_holo_foreground(**kwargs: object) -> HoloRunResult:
         nonlocal captured_max_time_s
@@ -127,6 +134,7 @@ def test_run_and_evaluate_uses_live_timeout_for_holo_max_time(tmp_path: Path, mo
             stderr="",
             duration_s=1.0,
             event_log_path=None,
+            runtime_log_path=runtime_log,
         )
 
     monkeypatch.setattr(_harness, "run_holo_foreground", fake_run_holo_foreground)
@@ -147,6 +155,41 @@ def test_run_and_evaluate_uses_live_timeout_for_holo_max_time(tmp_path: Path, mo
     )
 
     assert captured_max_time_s == 240.0
+    assert artifacts.runtime_log_path.read_text(encoding="utf-8") == "Attempt #1 failed with APITimeoutError\n"
+    result = json.loads(artifacts.result_path.read_text(encoding="utf-8"))
+    assert result["runtime_log_path"] == str(runtime_log)
+    assert result["copied_runtime_log_path"] == str(artifacts.runtime_log_path)
+
+
+def test_timeout_cleanup_force_kills_after_grace_period() -> None:
+    proc = MagicMock()
+    proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="holo run", timeout=10.0), -9]
+
+    message = _runner._graceful_timeout_cleanup(proc)
+
+    if os.name == "nt":
+        proc.terminate.assert_called_once_with()
+    else:
+        proc.send_signal.assert_called_once_with(signal.SIGINT)
+    proc.kill.assert_called_once_with()
+    expected_signal = "terminate" if os.name == "nt" else "SIGINT"
+    assert message == f"{expected_signal} cleanup exceeded 10s; force-killed"
+
+
+def test_runtime_logs_survive_retried_task_attempts(tmp_path: Path) -> None:
+    artifacts = E2EArtifacts.create(tmp_path / "artifacts")
+    first = tmp_path / "runtime-first.log"
+    second = tmp_path / "runtime-second.log"
+    first.write_text("first attempt timed out\n", encoding="utf-8")
+    second.write_text("second attempt passed\n", encoding="utf-8")
+
+    first_copy = artifacts.copy_runtime_log(first)
+    second_copy = artifacts.copy_runtime_log(second)
+
+    assert first_copy == artifacts.root / "runtime.log"
+    assert second_copy == artifacts.root / "runtime-attempt-2.log"
+    assert first_copy.read_text(encoding="utf-8") == "first attempt timed out\n"
+    assert second_copy.read_text(encoding="utf-8") == "second attempt passed\n"
 
 
 def test_run_and_evaluate_rejects_zero_step_holo_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -436,14 +479,19 @@ def test_windows_runner_supports_stable_ci_task_catalog() -> None:
     assert {task.id for task in WINDOWS_FOREGROUND_TASKS} == STABLE_CI_TASK_IDS
 
 
-def test_double_click_repro_task_is_registered_on_macos_and_windows() -> None:
+def test_linux_runner_supports_stable_ci_task_catalog() -> None:
+    assert {task.id for task in LINUX_FOREGROUND_TASKS} == STABLE_CI_TASK_IDS
+
+
+def test_double_click_repro_task_is_registered_on_all_platforms() -> None:
     assert FINDER_OPEN_FILE_BY_DOUBLE_CLICK.id == "finder_open_file_by_double_click"
     assert FINDER_OPEN_FILE_BY_DOUBLE_CLICK in MACOS_FOREGROUND_TASKS
     assert FINDER_OPEN_FILE_BY_DOUBLE_CLICK in WINDOWS_FOREGROUND_TASKS
+    assert FINDER_OPEN_FILE_BY_DOUBLE_CLICK in LINUX_FOREGROUND_TASKS
 
 
 def test_removed_unstable_task_ids_are_not_registered() -> None:
-    registered_ids = {task.id for task in (*MACOS_FOREGROUND_TASKS, *WINDOWS_FOREGROUND_TASKS)}
+    registered_ids = {task.id for task in (*MACOS_FOREGROUND_TASKS, *WINDOWS_FOREGROUND_TASKS, *LINUX_FOREGROUND_TASKS)}
 
     assert registered_ids.isdisjoint(
         {
@@ -529,17 +577,20 @@ def test_macos_task_preparation_does_not_launch_target_apps(tmp_path: Path, monk
 def test_environment_runner_selection() -> None:
     macos_runner = runner_for_platform("darwin")
     windows_runner = runner_for_platform("win32")
+    linux_runner = runner_for_platform("linux")
 
     assert macos_runner.environment_id == "macos-foreground"
     assert windows_runner.environment_id == "windows-foreground"
+    assert linux_runner.environment_id == "linux-foreground"
     with pytest.raises(UnsupportedEnvironmentError):
-        runner_for_platform("linux")
+        runner_for_platform("freebsd")
 
 
-def test_calculator_ci_smoke_is_available_on_macos_and_windows() -> None:
+def test_calculator_ci_smoke_is_available_on_all_platforms() -> None:
     assert CALCULATOR_CI_SMOKE.id == "calculator_ci_smoke"
     assert CALCULATOR_CI_SMOKE in MACOS_FOREGROUND_TASKS
     assert CALCULATOR_CI_SMOKE in WINDOWS_FOREGROUND_TASKS
+    assert CALCULATOR_CI_SMOKE in LINUX_FOREGROUND_TASKS
 
 
 def test_calculator_ci_smoke_macos_prepares_two_plus_two(tmp_path: Path) -> None:
@@ -564,6 +615,33 @@ def test_calculator_ci_smoke_windows_prepares_two_plus_two(tmp_path: Path) -> No
     assert prepared.metadata["b"] == 2
     assert prepared.metadata["expected"] == 4
     assert prepared.evaluator.name == "windows_calculator_result"
+
+
+def test_calculator_ci_smoke_linux_prepares_two_plus_two(tmp_path: Path) -> None:
+    prepared = LinuxEnvironmentRunner().prepare(CALCULATOR_CI_SMOKE, tmp_path)
+
+    assert "KCalc" in prepared.instruction
+    assert "2 plus 2" in prepared.instruction
+    assert prepared.metadata["expected"] == 4
+    assert prepared.evaluator.name == "linux_calculator_result"
+
+
+def test_linux_kcalc_display_prefers_accessible_display_value() -> None:
+    entries = [
+        {"name": "7", "role": "push button", "text": ""},
+        {"name": "100", "role": "label", "text": ""},
+        {"name": "", "role": "text", "text": "2 + 2 = 4"},
+    ]
+
+    assert _linux_evaluators.kcalc_display_from_entries(entries) == "2 + 2 = 4"
+    assert _linux_evaluators.kcalc_result_part("2 + 2 = 4") == "4"
+
+
+def test_linux_opened_file_window_requires_mousepad_and_target_name() -> None:
+    titles = ["Desktop - Thunar", "other.txt - Mousepad", "fixture.txt - Mousepad"]
+
+    assert _linux_evaluators.opened_file_window("fixture.txt", titles) == "fixture.txt - Mousepad"
+    assert _linux_evaluators.opened_file_window("missing.txt", titles) is None
 
 
 def test_finder_open_file_by_double_click_prepares_desktop_text_file(
