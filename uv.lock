@@ -620,7 +620,7 @@ wheels = [
 
 [[package]]
 name = "holo-desktop-cli"
-version = "0.0.2"
+version = "0.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "a2a-sdk", extra = ["http-server"] },

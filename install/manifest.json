@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "holo_version": "0.0.2",
+  "holo_version": "0.0.3",
   "python_version": "3.12",
   "uv_version": "0.9.18",
   "supported_platforms": {
