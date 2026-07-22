@@ -10,7 +10,7 @@ function Get-HoloWindowsPlatform {
         [System.Runtime.InteropServices.OSPlatform, mscorlib]::Windows
     )
     if (-not $IsWindows) {
-        Fail "Holo Desktop installer does not support this operating system from install.ps1. Use install.sh on macOS Apple Silicon."
+        Fail "Holo Desktop installer does not support this operating system from install.ps1. Use install.sh on macOS or Linux."
     }
 
     $Architecture = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::OSArchitecture.ToString()

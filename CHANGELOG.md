@@ -8,7 +8,17 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Fixed the Windows installer incorrectly rejecting x86_64 systems when PSReadLine shadows .NET's architecture information type.
 
-## [0.0.1] - Unreleased
+## [0.0.3] - 2026-07-21
+
+- Added managed Linux x86_64 runtime installation, installer support, and Linux end-to-end coverage.
+- Added Grok Build (xAI) to the supported `holo install` hosts.
+
+## [0.0.2] - 2026-07-09
+
+- Added consumer install scripts with a managed Python and uv toolchain for macOS Apple Silicon and Windows x86_64.
+- Added the release pipeline that publishes versioned installer assets to GitHub Releases and the public installer CDN.
+
+## [0.0.1] - 2026-06-22
 
 Initial public release.
 
@@ -22,4 +32,6 @@ Initial public release.
 - macOS (Apple Silicon) and Windows ship managed runtime artifacts; macOS Intel and Linux work with a `hai-agent-runtime` on `PATH`.
 
 [0.0.1]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.1
+[0.0.2]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.2
+[0.0.3]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.3
 [0.0.4]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.4
