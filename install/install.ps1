@@ -5,18 +5,23 @@ function Fail($Message) {
     exit 1
 }
 
-$IsWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
-    [System.Runtime.InteropServices.OSPlatform]::Windows
-)
-if (-not $IsWindows) {
-    Fail "Holo Desktop installer does not support this operating system from install.ps1. Use install.sh on macOS Apple Silicon."
+function Get-HoloWindowsPlatform {
+    $IsWindows = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform, mscorlib]::Windows
+    )
+    if (-not $IsWindows) {
+        Fail "Holo Desktop installer does not support this operating system from install.ps1. Use install.sh on macOS or Linux."
+    }
+
+    $Architecture = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::OSArchitecture.ToString()
+    if ($Architecture -ne "X64") {
+        Fail "Holo Desktop installer does not support Windows architecture '$Architecture'. V1 supports windows-x86_64 only."
+    }
+
+    return "windows-x86_64"
 }
 
-if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64) {
-    Fail "Holo Desktop installer does not support Windows ARM64 yet. V1 supports windows-x86_64 only."
-}
-
-$Platform = "windows-x86_64"
+$Platform = Get-HoloWindowsPlatform
 $HoloHome = if ($env:HOLO_HOME) { $env:HOLO_HOME } else { Join-Path $HOME ".holo" }
 $ManifestUrl = if ($env:HOLO_INSTALL_MANIFEST_URL) { $env:HOLO_INSTALL_MANIFEST_URL } else { "https://install.hcompany.ai/install/manifest.json" }
 $TempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("holo-install-" + [System.Guid]::NewGuid().ToString("N"))

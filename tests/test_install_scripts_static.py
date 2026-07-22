@@ -4,7 +4,10 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALL_DIR = ROOT / "install"
@@ -13,7 +16,7 @@ INSTALL_DIR = ROOT / "install"
 def test_manifest_supports_only_v1_platforms_with_real_hashes() -> None:
     manifest = json.loads((INSTALL_DIR / "manifest.json").read_text())
     assert set(manifest["supported_platforms"]) == {"darwin-arm64", "windows-x86_64", "linux-x86_64"}
-    assert manifest["holo_version"] == "0.0.3"
+    assert manifest["holo_version"] == "0.0.4"
     assert manifest["python_version"] == "3.12"
     for entry in manifest["supported_platforms"].values():
         assert re.fullmatch(r"[0-9a-f]{64}", entry["uv_sha256"])
@@ -41,8 +44,6 @@ def test_install_sh_has_supported_and_unsupported_platform_paths() -> None:
 
 def test_install_ps1_targets_windows_x86_64_and_user_path() -> None:
     text = (INSTALL_DIR / "install.ps1").read_text()
-    assert "IsWindows" in text
-    assert "X64" in text
     assert "[Environment]::SetEnvironmentVariable" in text
     assert "windows-x86_64" in text
     assert "https://install.hcompany.ai/install/manifest.json" in text
@@ -68,6 +69,44 @@ def test_install_ps1_parses_when_powershell_is_available() -> None:
         cwd=ROOT,
         check=True,
     )
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="requires Windows architecture detection")
+@pytest.mark.parametrize(
+    "shell",
+    [path for name in ("powershell", "pwsh") if (path := shutil.which(name))],
+)
+def test_install_ps1_detects_x64_with_psreadline_loaded(shell: str) -> None:
+    command = r"""
+$tokens = $null
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    (Resolve-Path 'install/install.ps1'),
+    [ref]$tokens,
+    [ref]$errors
+)
+if ($errors.Count -ne 0) {
+    throw "install.ps1 parse errors: $errors"
+}
+
+foreach ($name in @('Fail', 'Get-HoloWindowsPlatform')) {
+    $definition = $ast.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
+    }, $true)
+    if ($null -eq $definition) {
+        throw "install.ps1 does not define $name"
+    }
+    Invoke-Expression $definition.Extent.Text
+}
+
+Import-Module PSReadLine -ErrorAction Stop
+$platform = Get-HoloWindowsPlatform
+if ($platform -ne 'windows-x86_64') {
+    throw "expected windows-x86_64, got '$platform'"
+}
+"""
+    subprocess.run([shell, "-NoProfile", "-Command", command], cwd=ROOT, check=True)
 
 
 def test_holo_help_does_not_expose_installer_bootstrap() -> None:
