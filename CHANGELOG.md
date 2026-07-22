@@ -4,6 +4,10 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.4] - 2026-07-22
+
+- Fixed the Windows installer incorrectly rejecting x86_64 systems when PSReadLine shadows .NET's architecture information type.
+
 ## [0.0.1] - Unreleased
 
 Initial public release.
@@ -18,3 +22,4 @@ Initial public release.
 - macOS (Apple Silicon) and Windows ship managed runtime artifacts; macOS Intel and Linux work with a `hai-agent-runtime` on `PATH`.
 
 [0.0.1]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.1
+[0.0.4]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.4

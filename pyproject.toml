@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "holo-desktop-cli"
-version = "0.0.3"
+version = "0.0.4"
 description = "Vision-language agent that drives real macOS, Linux, and Windows apps. Powered by Holo3; thin client over the hai-agent-runtime agent API."
 readme = "README.md"
 license = { file = "LICENSE" }
