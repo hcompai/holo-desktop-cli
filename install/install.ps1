@@ -5,6 +5,16 @@ function Fail($Message) {
     exit 1
 }
 
+function Copy-OrDownloadArtifact($Source, $Destination) {
+    if ($Source.StartsWith("file://")) {
+        Copy-Item -Path $Source.Substring(7) -Destination $Destination -Force
+    } elseif (Test-Path $Source) {
+        Copy-Item -Path $Source -Destination $Destination -Force
+    } else {
+        Invoke-WebRequest -Uri $Source -OutFile $Destination
+    }
+}
+
 function Get-HoloWindowsPlatform {
     $RunningOnWindows = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::IsOSPlatform(
         [System.Runtime.InteropServices.OSPlatform, mscorlib]::Windows
@@ -32,13 +42,7 @@ New-Item -ItemType Directory -Force -Path $TempRoot, (Join-Path $HoloHome "bin")
 
 try {
     $ManifestPath = Join-Path $TempRoot "manifest.json"
-    if ($ManifestUrl.StartsWith("file://")) {
-        Copy-Item -Path $ManifestUrl.Substring(7) -Destination $ManifestPath -Force
-    } elseif (Test-Path $ManifestUrl) {
-        Copy-Item -Path $ManifestUrl -Destination $ManifestPath -Force
-    } else {
-        Invoke-WebRequest -Uri $ManifestUrl -OutFile $ManifestPath
-    }
+    Copy-OrDownloadArtifact $ManifestUrl $ManifestPath
 
     $Manifest = Get-Content -Raw $ManifestPath | ConvertFrom-Json
     $Entry = $Manifest.supported_platforms.$Platform
@@ -53,13 +57,7 @@ try {
     $PackageSpec = if ($env:HOLO_INSTALL_PACKAGE) { $env:HOLO_INSTALL_PACKAGE } else { "holo-desktop-cli==$HoloVersion" }
 
     $UvZip = Join-Path $TempRoot "uv.zip"
-    if ($UvUrl.StartsWith("file://")) {
-        Copy-Item -Path $UvUrl.Substring(7) -Destination $UvZip -Force
-    } elseif (Test-Path $UvUrl) {
-        Copy-Item -Path $UvUrl -Destination $UvZip -Force
-    } else {
-        Invoke-WebRequest -Uri $UvUrl -OutFile $UvZip
-    }
+    Copy-OrDownloadArtifact $UvUrl $UvZip
 
     $ActualSha256 = (Get-FileHash -Algorithm SHA256 -Path $UvZip).Hash.ToLowerInvariant()
     if ($ActualSha256 -ne $UvSha256.ToLowerInvariant()) {
@@ -102,7 +100,44 @@ try {
         Fail "installed Python architecture '$PythonMachine' does not match $Platform (expected $ExpectedPythonMachine)"
     }
 
-    & $UvExe tool install $PackageSpec --python $PythonExe --force --reinstall-package holo-desktop-cli
+    $BinaryDependencyArgs = @()
+    if ($Platform -eq "windows-arm64") {
+        $WheelDirectory = Join-Path $TempRoot "wheels"
+        New-Item -ItemType Directory -Force -Path $WheelDirectory | Out-Null
+        $Dependencies = @($Entry.dependency_wheels)
+        if ($Dependencies.Count -eq 0) {
+            Fail "installer manifest does not contain Windows ARM64 dependency wheels"
+        }
+        foreach ($Dependency in $Dependencies) {
+            $DependencyName = [string]$Dependency.name
+            $DependencyUrl = [string]$Dependency.url
+            $DependencySha256 = [string]$Dependency.sha256
+            if (-not $DependencyName -or -not $DependencyUrl -or $DependencyUrl -eq "BUILD_AT_RELEASE") {
+                Fail "installer manifest has an unpublished Windows ARM64 dependency wheel"
+            }
+            if ($DependencySha256 -notmatch "^[0-9a-fA-F]{64}$" -or $DependencySha256 -match "^0{64}$") {
+                Fail "installer manifest has an invalid SHA for Windows ARM64 dependency '$DependencyName'"
+            }
+
+            $DependencyFileName = if ($DependencyUrl -match "^[a-zA-Z][a-zA-Z0-9+.-]*://") {
+                Split-Path ([System.Uri]$DependencyUrl).AbsolutePath -Leaf
+            } else {
+                Split-Path $DependencyUrl -Leaf
+            }
+            if (-not $DependencyFileName.EndsWith(".whl")) {
+                Fail "Windows ARM64 dependency '$DependencyName' URL does not name a wheel: $DependencyUrl"
+            }
+            $DependencyPath = Join-Path $WheelDirectory $DependencyFileName
+            Copy-OrDownloadArtifact $DependencyUrl $DependencyPath
+            $ActualDependencySha256 = (Get-FileHash -Algorithm SHA256 -Path $DependencyPath).Hash.ToLowerInvariant()
+            if ($ActualDependencySha256 -ne $DependencySha256.ToLowerInvariant()) {
+                Fail "sha256 mismatch for Windows ARM64 dependency '$DependencyName': expected $DependencySha256, got $ActualDependencySha256"
+            }
+        }
+        $BinaryDependencyArgs = @("--find-links", $WheelDirectory, "--no-build")
+    }
+
+    & $UvExe tool install $PackageSpec --python $PythonExe --force --reinstall-package holo-desktop-cli @BinaryDependencyArgs
     if ($LASTEXITCODE -ne 0) {
         Fail "uv failed to install $PackageSpec with $PythonExe"
     }
@@ -119,7 +154,7 @@ try {
     }
 
     if ($env:HOLO_INSTALL_SKIP_RUN_SETUP -ne "1") {
-        & $UvExe run --python $PythonExe --with $PackageSpec python -m holo_desktop.installer_bootstrap --yes
+        & $UvExe run --python $PythonExe --with $PackageSpec @BinaryDependencyArgs python -m holo_desktop.installer_bootstrap --yes
         if ($LASTEXITCODE -ne 0) {
             Fail "Holo Desktop runtime setup failed"
         }

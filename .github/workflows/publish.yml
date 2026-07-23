@@ -37,6 +37,42 @@ jobs:
         run: |
           uv run python -c "import holo_desktop.cli; from holo_desktop import __version__; from holo_desktop.agent_client import AgentApiClient, SpawnConfig, ensure_running; print(__version__)"
 
+  windows-arm64-dependency:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.9.18"
+          enable-cache: true
+      - id: build
+        name: Build Windows ARM64 dependency wheel and release manifest
+        shell: pwsh
+        run: |
+          .\scripts\build_windows_arm64_dependency_wheel.ps1 `
+            -WheelDirectory "$env:RUNNER_TEMP\windows-arm64-dependency\wheels" `
+            -ManifestOutput "$env:RUNNER_TEMP\windows-arm64-dependency\install\manifest.json"
+      - name: Refuse an unpublished or mismatched dependency
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content -Raw "${{ steps.build.outputs.manifest_path }}" | ConvertFrom-Json
+          $dependency = @($manifest.supported_platforms."windows-arm64".dependency_wheels)[0]
+          if ([string]$dependency.url -eq "BUILD_AT_RELEASE" -or [string]$dependency.sha256 -match "^0{64}$") {
+            throw "release manifest still contains a Windows ARM64 dependency placeholder"
+          }
+          $actual = (Get-FileHash -Algorithm SHA256 "${{ steps.build.outputs.wheel_path }}").Hash.ToLowerInvariant()
+          if ($actual -ne [string]$dependency.sha256) {
+            throw "release manifest SHA does not match the built Windows ARM64 dependency wheel"
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-dependency
+          path: ${{ runner.temp }}/windows-arm64-dependency/
+          if-no-files-found: error
+          retention-days: 7
+
   build:
     needs: quality
     runs-on: ubuntu-latest
@@ -72,7 +108,7 @@ jobs:
           retention-days: 7
 
   publish-pypi:
-    needs: build
+    needs: [build, windows-arm64-dependency]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: release
@@ -109,7 +145,7 @@ jobs:
           attestations: true
 
   release:
-    needs: publish-pypi
+    needs: [publish-pypi, windows-arm64-dependency]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -120,13 +156,18 @@ jobs:
         with:
           name: dist
           path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-arm64-dependency
+          path: release-assets/
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*
+            release-assets/wheels/*.whl
             install/install.sh
             install/install.ps1
-            install/manifest.json
+            release-assets/install/manifest.json
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
@@ -143,6 +184,10 @@ jobs:
       INSTALLER_BASE_URL: https://install.hcompany.ai
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-arm64-dependency
+          path: ${{ runner.temp }}/windows-arm64-dependency/
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -152,13 +197,59 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          dependency_root="$RUNNER_TEMP/windows-arm64-dependency"
+          manifest="$dependency_root/install/manifest.json"
+          wheel="$(find "$dependency_root/wheels" -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          test -n "$wheel"
+
+          wheel_url="$(jq -r '.supported_platforms["windows-arm64"].dependency_wheels[0].url' "$manifest")"
+          expected_sha="$(jq -r '.supported_platforms["windows-arm64"].dependency_wheels[0].sha256' "$manifest")"
+          actual_sha="$(sha256sum "$wheel" | cut -d' ' -f1)"
+          if [ "$actual_sha" != "$expected_sha" ]; then
+            echo "Windows ARM64 dependency wheel SHA does not match the release manifest" >&2
+            exit 1
+          fi
+
+          installer_prefix="${INSTALLER_BASE_URL%/}/"
+          case "$wheel_url" in
+            "$installer_prefix"*) wheel_key="${wheel_url#"$installer_prefix"}" ;;
+            *)
+              echo "Windows ARM64 dependency URL is outside $installer_prefix: $wheel_url" >&2
+              exit 1
+              ;;
+          esac
+
+          if remote="$(aws s3api head-object --bucket "$INSTALLER_ASSETS_BUCKET" --key "$wheel_key" 2>/dev/null)"; then
+            remote_sha="$(jq -r '.Metadata.sha256 // ""' <<<"$remote")"
+            if [ "$remote_sha" != "$expected_sha" ]; then
+              echo "Immutable dependency object already exists with SHA '$remote_sha', expected '$expected_sha'" >&2
+              exit 1
+            fi
+          else
+            if ! aws s3api put-object \
+              --bucket "$INSTALLER_ASSETS_BUCKET" \
+              --key "$wheel_key" \
+              --body "$wheel" \
+              --content-type application/octet-stream \
+              --cache-control "public, max-age=31536000, immutable" \
+              --metadata "sha256=$expected_sha" \
+              --if-none-match '*'; then
+              remote="$(aws s3api head-object --bucket "$INSTALLER_ASSETS_BUCKET" --key "$wheel_key")"
+              remote_sha="$(jq -r '.Metadata.sha256 // ""' <<<"$remote")"
+              if [ "$remote_sha" != "$expected_sha" ]; then
+                echo "Concurrent immutable dependency upload has SHA '$remote_sha', expected '$expected_sha'" >&2
+                exit 1
+              fi
+            fi
+          fi
+
           aws s3 cp install/install.sh "s3://${INSTALLER_ASSETS_BUCKET}/install.sh" \
             --content-type text/x-shellscript \
             --cache-control "public, max-age=300"
           aws s3 cp install/install.ps1 "s3://${INSTALLER_ASSETS_BUCKET}/install.ps1" \
             --content-type text/plain \
             --cache-control "public, max-age=300"
-          aws s3 cp install/manifest.json "s3://${INSTALLER_ASSETS_BUCKET}/install/manifest.json" \
+          aws s3 cp "$manifest" "s3://${INSTALLER_ASSETS_BUCKET}/install/manifest.json" \
             --content-type application/json \
             --cache-control "public, max-age=300"
       - name: Verify CDN endpoints
@@ -167,7 +258,12 @@ jobs:
           set -euo pipefail
           curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | head -n 5
           curl -fsSL "${INSTALLER_BASE_URL}/install.ps1" | head -n 5
-          curl -fsSL "${INSTALLER_BASE_URL}/install/manifest.json" | python -m json.tool >/dev/null
+          manifest="$(curl -fsSL "${INSTALLER_BASE_URL}/install/manifest.json")"
+          python -m json.tool <<<"$manifest" >/dev/null
+          wheel_url="$(jq -r '.supported_platforms["windows-arm64"].dependency_wheels[0].url' <<<"$manifest")"
+          expected_sha="$(jq -r '.supported_platforms["windows-arm64"].dependency_wheels[0].sha256' <<<"$manifest")"
+          actual_sha="$(curl -fsSL "$wheel_url" | sha256sum | cut -d' ' -f1)"
+          test "$actual_sha" = "$expected_sha"
       - name: Smoke Linux installer from CDN
         shell: bash
         env:
@@ -203,6 +299,7 @@ jobs:
         shell: pwsh
         env:
           HOLO_HOME: ${{ runner.temp }}\holo-installer-home\.holo
+          UV_NO_BUILD: "1"
         run: |
           $ErrorActionPreference = "Stop"
           $installer = Join-Path $env:RUNNER_TEMP "install.ps1"

@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,19 @@ def test_manifest_supports_only_v1_platforms_with_real_hashes() -> None:
     for entry in manifest["supported_platforms"].values():
         assert re.fullmatch(r"[0-9a-f]{64}", entry["uv_sha256"])
         assert entry["uv_url"].startswith("https://")
+
+    dependencies = manifest["supported_platforms"]["windows-arm64"]["dependency_wheels"]
+    assert dependencies == [
+        {
+            "name": "cryptography",
+            "version": "48.0.0",
+            "url": "BUILD_AT_RELEASE",
+            "sha256": "0" * 64,
+        }
+    ]
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    locked_cryptography = next(package for package in lock["package"] if package["name"] == "cryptography")
+    assert dependencies[0]["version"] == locked_cryptography["version"]
 
 
 def test_install_sh_has_supported_and_unsupported_platform_paths() -> None:
@@ -61,6 +75,10 @@ def test_install_ps1_targets_supported_windows_architectures_and_user_path() -> 
     assert "--no-bin" in text
     assert "--no-registry" in text
     assert "--reinstall-package holo-desktop-cli" in text
+    assert "--find-links" in text
+    assert "--no-build" in text
+    assert "dependency_wheels" in text
+    assert "sha256 mismatch for Windows ARM64 dependency" in text
     assert "python -m holo_desktop.installer_bootstrap --yes" in text
     assert 'holo.exe") setup' not in text
 
