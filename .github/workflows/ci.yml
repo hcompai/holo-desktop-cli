@@ -9,6 +9,35 @@ permissions:
   contents: read
 
 jobs:
+  windows-arm64-installer:
+    name: fresh Windows ARM64 installer
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from the pull request checkout
+        shell: pwsh
+        env:
+          HOLO_HOME: ${{ runner.temp }}\holo-installer-smoke
+          HOLO_INSTALL_MANIFEST_URL: ${{ github.workspace }}\install\manifest.json
+          HOLO_INSTALL_PACKAGE: ${{ github.workspace }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtimeSha = ((Get-Content shas/windows-arm64.txt).Trim() -split "=", 2)[1]
+          if ($runtimeSha -match "^0{64}$") {
+            $env:HOLO_INSTALL_SKIP_RUN_SETUP = "1"
+            Write-Host "Runtime artifact is pending; validating the native CLI installer only."
+          }
+
+          & .\install\install.ps1
+          & "$env:HOLO_HOME\bin\holo.exe" --help
+
+          if ($runtimeSha -notmatch "^0{64}$") {
+            $runtime = Get-ChildItem "$HOME\.holo\runtime\*\hai-agent-runtime.exe" | Select-Object -First 1
+            if ($null -eq $runtime) {
+              throw "installer completed without a managed Windows ARM64 runtime"
+            }
+          }
+
   linux-installer:
     name: fresh Linux installer
     runs-on: ubuntu-latest
@@ -49,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest, windows-11-arm]
     runs-on: ${{ matrix.os }}
     env:
       # Backstop for sub-calls that print before main() reconfigures stdout (cp1252 otherwise).

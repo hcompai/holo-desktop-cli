@@ -54,6 +54,15 @@ jobs:
             echo "tag v$tag does not match pyproject version $pkg" >&2
             exit 1
           fi
+      - name: assert every managed runtime artifact is published
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -H -E '=0{64}$' shas/*.txt; then
+            echo "A managed runtime platform still has a placeholder SHA; refusing a client release." >&2
+            exit 1
+          fi
       - run: uv build
       - uses: actions/upload-artifact@v4
         with:
@@ -182,3 +191,33 @@ jobs:
           done
           echo "Linux install from ${INSTALLER_BASE_URL}/install.sh failed after 11 attempts" >&2
           exit 1
+
+  smoke-windows-arm64-installer-cdn:
+    needs: publish-installer-cdn
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-11-arm
+    env:
+      INSTALLER_BASE_URL: https://install.hcompany.ai
+    steps:
+      - name: Smoke Windows ARM64 installer from CDN
+        shell: pwsh
+        env:
+          HOLO_HOME: ${{ runner.temp }}\holo-installer-home\.holo
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Join-Path $env:RUNNER_TEMP "install.ps1"
+          for ($attempt = 1; $attempt -le 11; $attempt++) {
+            Remove-Item -Recurse -Force (Split-Path $env:HOLO_HOME) -ErrorAction SilentlyContinue
+            try {
+              Invoke-WebRequest "$env:INSTALLER_BASE_URL/install.ps1" -OutFile $installer
+              & $installer
+              & "$env:HOLO_HOME\bin\holo.exe" --help
+              exit 0
+            } catch {
+              Write-Host "Windows ARM64 installer attempt $attempt/11 failed: $_"
+              if ($attempt -lt 11) {
+                Start-Sleep -Seconds 30
+              }
+            }
+          }
+          throw "Windows ARM64 install from $env:INSTALLER_BASE_URL/install.ps1 failed after 11 attempts"

@@ -14,11 +14,13 @@ function Get-HoloWindowsPlatform {
     }
 
     $Architecture = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::OSArchitecture.ToString()
-    if ($Architecture -ne "X64") {
-        Fail "Holo Desktop installer does not support Windows architecture '$Architecture'. V1 supports windows-x86_64 only."
+    switch ($Architecture) {
+        "X64" { return "windows-x86_64" }
+        "Arm64" { return "windows-arm64" }
+        default {
+            Fail "Holo Desktop installer does not support Windows architecture '$Architecture'. Supported architectures: X64, Arm64."
+        }
     }
-
-    return "windows-x86_64"
 }
 
 $Platform = Get-HoloWindowsPlatform
@@ -79,7 +81,31 @@ try {
     $env:UV_TOOL_BIN_DIR = Join-Path $HoloHome "bin"
 
     & $UvExe python install $PythonVersion --no-bin --no-registry
-    & $UvExe tool install $PackageSpec --python $PythonVersion --force --reinstall-package holo-desktop-cli
+    if ($LASTEXITCODE -ne 0) {
+        Fail "uv failed to install Python $PythonVersion"
+    }
+
+    $PythonExe = (& $UvExe python find --managed-python $PythonVersion).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $PythonExe)) {
+        Fail "uv installed Python $PythonVersion but could not resolve its executable"
+    }
+    $PythonMachine = (& $PythonExe -c "import platform; print(platform.machine())").Trim().ToUpperInvariant()
+    if ($LASTEXITCODE -ne 0) {
+        Fail "installed Python could not report its machine architecture"
+    }
+    $ExpectedPythonMachine = switch ($Platform) {
+        "windows-x86_64" { "AMD64" }
+        "windows-arm64" { "ARM64" }
+        default { Fail "installer has no Python architecture contract for $Platform" }
+    }
+    if ($PythonMachine -ne $ExpectedPythonMachine) {
+        Fail "installed Python architecture '$PythonMachine' does not match $Platform (expected $ExpectedPythonMachine)"
+    }
+
+    & $UvExe tool install $PackageSpec --python $PythonExe --force --reinstall-package holo-desktop-cli
+    if ($LASTEXITCODE -ne 0) {
+        Fail "uv failed to install $PackageSpec with $PythonExe"
+    }
 
     $BinDir = Join-Path $HoloHome "bin"
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -93,7 +119,10 @@ try {
     }
 
     if ($env:HOLO_INSTALL_SKIP_RUN_SETUP -ne "1") {
-        & $UvExe run --with $PackageSpec python -m holo_desktop.installer_bootstrap --yes
+        & $UvExe run --python $PythonExe --with $PackageSpec python -m holo_desktop.installer_bootstrap --yes
+        if ($LASTEXITCODE -ne 0) {
+            Fail "Holo Desktop runtime setup failed"
+        }
     }
 
     Write-Host ""

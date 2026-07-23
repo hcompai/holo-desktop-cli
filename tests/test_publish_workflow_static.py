@@ -43,6 +43,42 @@ def test_release_job_checks_out_installer_assets_before_github_release() -> None
     assert "install/manifest.json" in release_step["with"]["files"]
 
 
+def test_client_release_refuses_placeholder_runtime_and_smokes_windows_arm64() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8"))
+    build_steps = workflow["jobs"]["build"]["steps"]
+    gate = next(
+        step for step in build_steps if step.get("name") == "assert every managed runtime artifact is published"
+    )
+    assert gate["if"] == "startsWith(github.ref, 'refs/tags/v')"
+    assert "'=0{64}$' shas/*.txt" in gate["run"]
+
+    smoke = workflow["jobs"]["smoke-windows-arm64-installer-cdn"]
+    assert smoke["needs"] == "publish-installer-cdn"
+    assert smoke["runs-on"] == "windows-11-arm"
+    rendered = yaml.safe_dump(smoke, sort_keys=True)
+    assert "https://install.hcompany.ai" in rendered
+    assert "install.ps1" in rendered
+    assert "holo.exe" in rendered
+
+
+def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
+    ci = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    installer = ci["jobs"]["windows-arm64-installer"]
+    assert installer["runs-on"] == "windows-11-arm"
+    rendered_installer = yaml.safe_dump(installer, sort_keys=True)
+    assert "install.ps1" in rendered_installer
+    assert "windows-arm64.txt" in rendered_installer
+    assert "HOLO_INSTALL_SKIP_RUN_SETUP" in rendered_installer
+    assert "windows-11-arm" in ci["jobs"]["python"]["strategy"]["matrix"]["os"]
+
+    full_e2e = (ROOT / ".github/workflows/holo-full-e2e.yml").read_text(encoding="utf-8")
+    assert "selector: 'windows-arm64'" in full_e2e
+    assert "os: 'windows-11-arm'" in full_e2e
+    assert "artifact_platform: 'windows-arm64'" in full_e2e
+    assert "release_default: false" in full_e2e
+    assert "matrix.artifact_platform" in full_e2e
+
+
 def test_linux_live_workflows_install_the_pull_request_candidate() -> None:
     for relative_path in (
         ".github/workflows/holo-live-smoke.yml",

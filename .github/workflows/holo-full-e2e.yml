@@ -11,6 +11,7 @@ on:
           - linux
           - darwin
           - win32
+          - windows-arm64
         default: all
       fast:
         description: "Run with fast mode (--fast: one screenshot, no thinking, smaller uploads)"
@@ -37,18 +38,54 @@ jobs:
           result-encoding: string
           script: |
             const platforms = [
-              { os: 'macos-14', platform: 'darwin', platform_name: 'macOS' },
-              { os: 'windows-latest', platform: 'win32', platform_name: 'Windows' },
-              { os: 'ubuntu-22.04', platform: 'linux', platform_name: 'Linux' },
+              {
+                os: 'macos-14',
+                selector: 'darwin',
+                platform: 'darwin',
+                artifact_platform: 'darwin-arm64',
+                platform_name: 'macOS',
+                report_platform: 'macOS',
+                release_default: true,
+              },
+              {
+                os: 'windows-latest',
+                selector: 'win32',
+                platform: 'win32',
+                artifact_platform: 'windows-x86_64',
+                platform_name: 'Windows x86_64',
+                report_platform: 'Windows',
+                release_default: true,
+              },
+              {
+                os: 'windows-11-arm',
+                selector: 'windows-arm64',
+                platform: 'win32',
+                artifact_platform: 'windows-arm64',
+                platform_name: 'Windows ARM64',
+                report_platform: 'Windows',
+                // Promote this into `all` only after a real runtime SHA is pinned.
+                release_default: false,
+              },
+              {
+                os: 'ubuntu-22.04',
+                selector: 'linux',
+                platform: 'linux',
+                artifact_platform: 'linux-x86_64',
+                platform_name: 'Linux',
+                report_platform: 'Linux',
+                release_default: true,
+              },
             ];
             const selected = context.payload.inputs?.platform || 'all';
-            const allowed = new Set(['all', ...platforms.map(({ platform }) => platform)]);
+            const allowed = new Set(['all', ...platforms.map(({ selector }) => selector)]);
             if (!allowed.has(selected)) {
               core.setFailed(`Unsupported platform selection: ${selected}`);
               return JSON.stringify({ include: [] });
             }
             const include = platforms
-              .filter(({ platform }) => selected === 'all' || platform === selected)
+              .filter(({ selector, release_default }) => (
+                selected === 'all' ? release_default : selector === selected
+              ))
               .flatMap((entry) => Array.from({ length: 4 }, (_, shard_index) => ({
                 ...entry,
                 shard_index,
@@ -95,8 +132,8 @@ jobs:
         shell: bash
         run: |
           {
-            echo "HOLO_E2E_ARTIFACT_ROOT=$RUNNER_TEMP/holo-full-e2e-artifacts-${{ matrix.platform }}-${{ matrix.shard_index }}"
-            echo "HOLO_E2E_REPORT_DIR=$RUNNER_TEMP/holo-full-e2e-report-${{ matrix.platform }}-${{ matrix.shard_index }}"
+            echo "HOLO_E2E_ARTIFACT_ROOT=$RUNNER_TEMP/holo-full-e2e-artifacts-${{ matrix.artifact_platform }}-${{ matrix.shard_index }}"
+            echo "HOLO_E2E_REPORT_DIR=$RUNNER_TEMP/holo-full-e2e-report-${{ matrix.artifact_platform }}-${{ matrix.shard_index }}"
           } >> "$GITHUB_ENV"
 
       - name: Log GitHub OIDC claims
@@ -320,7 +357,7 @@ jobs:
               -q
             task_status=$?
             uv run python -m tests.e2e._report "$HOLO_E2E_ARTIFACT_ROOT" \
-              --platform "${{ matrix.platform_name }}" \
+              --platform "${{ matrix.report_platform }}" \
               --append-task-summary \
               --task-id "$task_id"
             report_status=$?
@@ -338,7 +375,7 @@ jobs:
         continue-on-error: true
         run: |
           uv run python -m tests.e2e._report "$HOLO_E2E_ARTIFACT_ROOT" \
-            --platform "${{ matrix.platform_name }}" \
+            --platform "${{ matrix.report_platform }}" \
             --report-dir "$HOLO_E2E_REPORT_DIR" \
             --expected-task-ids-file "$RUNNER_TEMP/holo-task-ids.txt" \
             --append-step-summary
@@ -367,7 +404,8 @@ jobs:
         if: always() && steps.check-full-e2e-artifact-redactions.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: holo-full-e2e-${{ github.run_id }}-${{ runner.os }}-shard-${{ matrix.shard_index }}
+          # Architecture is required because both Windows variants report runner.os == Windows.
+          name: holo-full-e2e-${{ github.run_id }}-${{ matrix.artifact_platform }}-shard-${{ matrix.shard_index }}
           path: |
             ${{ env.HOLO_E2E_ARTIFACT_ROOT }}
             ${{ env.HOLO_E2E_REPORT_DIR }}
