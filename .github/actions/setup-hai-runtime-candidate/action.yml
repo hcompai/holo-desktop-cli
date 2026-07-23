@@ -1,0 +1,109 @@
+name: Set up HAI runtime candidate
+description: Verify and expose a Windows ARM64 runtime artifact from a successful HAI Actions run.
+
+inputs:
+  github-token:
+    description: Read-only token with Actions access to hcompai/hai.
+    required: true
+  run-id:
+    description: Successful hcompai/hai workflow run containing the candidate artifacts.
+    required: true
+  expected-head-sha:
+    description: Exact HAI commit the candidate run must have built.
+    required: true
+
+outputs:
+  archive_path:
+    description: Verified Windows ARM64 runtime zip.
+    value: ${{ steps.verify.outputs.archive_path }}
+  binary_path:
+    description: Extracted hai-agent-runtime.exe.
+    value: ${{ steps.verify.outputs.binary_path }}
+  runtime_directory:
+    description: Extracted runtime directory added to PATH.
+    value: ${{ steps.verify.outputs.runtime_directory }}
+  sha256:
+    description: Verified runtime zip SHA-256.
+    value: ${{ steps.verify.outputs.sha256 }}
+
+runs:
+  using: composite
+  steps:
+    - name: Verify candidate run provenance
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        HAI_RUN_ID: ${{ inputs.run-id }}
+        EXPECTED_HEAD_SHA: ${{ inputs.expected-head-sha }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $headers = @{
+          Accept = "application/vnd.github+json"
+          Authorization = "Bearer $env:GH_TOKEN"
+          "X-GitHub-Api-Version" = "2022-11-28"
+        }
+        $run = Invoke-RestMethod `
+          -Headers $headers `
+          -Uri "https://api.github.com/repos/hcompai/hai/actions/runs/$env:HAI_RUN_ID"
+        if ($run.status -ne "completed" -or $run.conclusion -ne "success") {
+          throw "HAI candidate run $env:HAI_RUN_ID is not successful: status=$($run.status), conclusion=$($run.conclusion)"
+        }
+        if ($run.head_sha -ne $env:EXPECTED_HEAD_SHA) {
+          throw "HAI candidate run $env:HAI_RUN_ID built $($run.head_sha), expected $env:EXPECTED_HEAD_SHA"
+        }
+        Write-Host "Verified successful HAI run $env:HAI_RUN_ID at $env:EXPECTED_HEAD_SHA"
+
+    - name: Download Windows ARM64 runtime zip
+      uses: actions/download-artifact@v4
+      with:
+        name: runtime-zip-windows-arm64
+        path: ${{ runner.temp }}/hai-runtime-candidate/archive
+        github-token: ${{ inputs.github-token }}
+        repository: hcompai/hai
+        run-id: ${{ inputs.run-id }}
+
+    - name: Download Windows ARM64 runtime SHA
+      uses: actions/download-artifact@v4
+      with:
+        name: runtime-sha-windows-arm64
+        path: ${{ runner.temp }}/hai-runtime-candidate/sha
+        github-token: ${{ inputs.github-token }}
+        repository: hcompai/hai
+        run-id: ${{ inputs.run-id }}
+
+    - id: verify
+      name: Verify and extract Windows ARM64 runtime
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        $root = Join-Path $env:RUNNER_TEMP "hai-runtime-candidate"
+        $archives = @(Get-ChildItem (Join-Path $root "archive") -Filter "hai-agent-runtime-windows-arm64.zip")
+        $shaFiles = @(Get-ChildItem (Join-Path $root "sha") -Filter "windows-arm64.txt")
+        if ($archives.Count -ne 1 -or $shaFiles.Count -ne 1) {
+          throw "expected exactly one Windows ARM64 runtime zip and SHA file"
+        }
+
+        $entry = (Get-Content -Raw $shaFiles[0].FullName).Trim()
+        $platform, $expectedSha = $entry -split "=", 2
+        if ($platform -ne "windows-arm64" -or $expectedSha -notmatch "^[0-9a-f]{64}$") {
+          throw "invalid Windows ARM64 runtime SHA entry: $entry"
+        }
+        $actualSha = (Get-FileHash -Algorithm SHA256 $archives[0].FullName).Hash.ToLowerInvariant()
+        if ($actualSha -ne $expectedSha) {
+          throw "Windows ARM64 runtime artifact SHA mismatch: expected $expectedSha, got $actualSha"
+        }
+
+        $runtimeDirectory = Join-Path $root "runtime"
+        Expand-Archive -Path $archives[0].FullName -DestinationPath $runtimeDirectory
+        $binaries = @(Get-ChildItem $runtimeDirectory -Filter "hai-agent-runtime.exe")
+        if ($binaries.Count -ne 1) {
+          throw "expected exactly one hai-agent-runtime.exe at the candidate archive root"
+        }
+
+        Add-Content -Path $env:GITHUB_PATH -Value $runtimeDirectory
+        @(
+          "archive_path=$($archives[0].FullName)"
+          "binary_path=$($binaries[0].FullName)"
+          "runtime_directory=$runtimeDirectory"
+          "sha256=$actualSha"
+        ) >> $env:GITHUB_OUTPUT

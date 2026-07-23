@@ -113,6 +113,59 @@ def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
     assert "matrix.artifact_platform" in full_e2e
 
 
+def test_windows_arm64_candidate_is_verified_and_consumed_before_merge() -> None:
+    action = yaml.safe_load(
+        (ROOT / ".github/actions/setup-hai-runtime-candidate/action.yml").read_text(encoding="utf-8")
+    )
+    assert set(action["inputs"]) == {"github-token", "run-id", "expected-head-sha"}
+    downloads = [step for step in action["runs"]["steps"] if step.get("uses") == "actions/download-artifact@v4"]
+    assert {step["with"]["name"] for step in downloads} == {
+        "runtime-zip-windows-arm64",
+        "runtime-sha-windows-arm64",
+    }
+    for step in downloads:
+        assert step["with"]["repository"] == "hcompai/hai"
+        assert step["with"]["github-token"] == "${{ inputs.github-token }}"
+        assert step["with"]["run-id"] == "${{ inputs.run-id }}"
+
+    rendered_action = yaml.safe_dump(action, sort_keys=True)
+    assert "run.status -ne" in rendered_action
+    assert "run.conclusion -ne" in rendered_action
+    assert "run.head_sha -ne" in rendered_action
+    assert "Windows ARM64 runtime artifact SHA mismatch" in rendered_action
+    assert "hai-agent-runtime.exe" in rendered_action
+    assert "GITHUB_PATH" in rendered_action
+
+    ci = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    installer = ci["jobs"]["windows-arm64-installer"]
+    candidate = next(step for step in installer["steps"] if step.get("id") == "runtime_candidate")
+    assert candidate["if"] == "vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID != ''"
+    assert candidate["uses"] == "./.github/actions/setup-hai-runtime-candidate"
+    assert candidate["with"] == {
+        "github-token": "${{ secrets.HAI_ACTIONS_READ_TOKEN }}",
+        "run-id": "${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID }}",
+        "expected-head-sha": "${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_HEAD_SHA }}",
+    }
+    installer_run = next(
+        step for step in installer["steps"] if step.get("name") == "Install from the pull request checkout"
+    )
+    assert "HAI_AGENT_RUNTIME_DOWNLOAD_URL" in installer_run["run"]
+    assert "HAI_AGENT_RUNTIME_DOWNLOAD_SHA256" in installer_run["run"]
+    assert "http.server" in installer_run["run"]
+    assert "$runtimeSha -notmatch" in installer_run["run"] and "$hasCandidate" in installer_run["run"]
+
+    full_e2e = yaml.safe_load((ROOT / ".github/workflows/holo-full-e2e.yml").read_text(encoding="utf-8"))
+    e2e_candidate = next(
+        step
+        for step in full_e2e["jobs"]["full-e2e"]["steps"]
+        if step.get("name") == "Set up the pre-merge HAI runtime candidate"
+    )
+    assert e2e_candidate["if"] == (
+        "matrix.artifact_platform == 'windows-arm64' && vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID != ''"
+    )
+    assert e2e_candidate["uses"] == "./.github/actions/setup-hai-runtime-candidate"
+
+
 def test_linux_live_workflows_install_the_pull_request_candidate() -> None:
     for relative_path in (
         ".github/workflows/holo-live-smoke.yml",

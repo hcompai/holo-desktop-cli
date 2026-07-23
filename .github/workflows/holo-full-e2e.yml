@@ -301,6 +301,14 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Set up the pre-merge HAI runtime candidate
+        if: matrix.artifact_platform == 'windows-arm64' && vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID != ''
+        uses: ./.github/actions/setup-hai-runtime-candidate
+        with:
+          github-token: ${{ secrets.HAI_ACTIONS_READ_TOKEN }}
+          run-id: ${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID }}
+          expected-head-sha: ${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_HEAD_SHA }}
+
       - name: Install dependencies
         run: uv sync --all-groups
 

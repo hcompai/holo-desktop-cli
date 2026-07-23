@@ -18,6 +18,14 @@ jobs:
         with:
           version: "0.9.18"
           enable-cache: true
+      - id: runtime_candidate
+        name: Set up the pre-merge HAI runtime candidate
+        if: vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID != ''
+        uses: ./.github/actions/setup-hai-runtime-candidate
+        with:
+          github-token: ${{ secrets.HAI_ACTIONS_READ_TOKEN }}
+          run-id: ${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID }}
+          expected-head-sha: ${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_HEAD_SHA }}
       - id: dependency
         name: Build the distributable Windows ARM64 dependency
         shell: pwsh
@@ -49,18 +57,52 @@ jobs:
           HOLO_INSTALL_MANIFEST_URL: ${{ steps.dependency.outputs.manifest_path }}
           HOLO_INSTALL_PACKAGE: ${{ steps.client.outputs.wheel_path }}
           UV_NO_BUILD: "1"
+          HAI_RUNTIME_CANDIDATE_ARCHIVE: ${{ steps.runtime_candidate.outputs.archive_path }}
+          HAI_RUNTIME_CANDIDATE_SHA256: ${{ steps.runtime_candidate.outputs.sha256 }}
         run: |
           $ErrorActionPreference = "Stop"
           $runtimeSha = ((Get-Content shas/windows-arm64.txt).Trim() -split "=", 2)[1]
-          if ($runtimeSha -match "^0{64}$") {
+          $hasCandidate = [bool]$env:HAI_RUNTIME_CANDIDATE_ARCHIVE
+          if ($runtimeSha -match "^0{64}$" -and -not $hasCandidate) {
             $env:HOLO_INSTALL_SKIP_RUN_SETUP = "1"
             Write-Host "Runtime artifact is pending; validating the native CLI installer only."
           }
 
-          & .\install\install.ps1
-          & "$env:HOLO_HOME\bin\holo.exe" --help
+          $server = $null
+          try {
+            if ($hasCandidate) {
+              $archiveDirectory = Split-Path $env:HAI_RUNTIME_CANDIDATE_ARCHIVE
+              $archiveName = Split-Path $env:HAI_RUNTIME_CANDIDATE_ARCHIVE -Leaf
+              $python = (& uv python find).Trim()
+              $server = Start-Process `
+                -FilePath $python `
+                -ArgumentList "-m", "http.server", "18797", "--bind", "127.0.0.1" `
+                -WorkingDirectory $archiveDirectory `
+                -PassThru
+              for ($attempt = 1; $attempt -le 20; $attempt++) {
+                try {
+                  Invoke-WebRequest "http://127.0.0.1:18797/$archiveName" -Method Head -TimeoutSec 1 | Out-Null
+                  break
+                } catch {
+                  if ($attempt -eq 20) {
+                    throw "candidate runtime loopback server did not become ready"
+                  }
+                  Start-Sleep -Milliseconds 250
+                }
+              }
+              $env:HAI_AGENT_RUNTIME_DOWNLOAD_URL = "http://127.0.0.1:18797/$archiveName"
+              $env:HAI_AGENT_RUNTIME_DOWNLOAD_SHA256 = $env:HAI_RUNTIME_CANDIDATE_SHA256
+            }
 
-          if ($runtimeSha -notmatch "^0{64}$") {
+            & .\install\install.ps1
+            & "$env:HOLO_HOME\bin\holo.exe" --help
+          } finally {
+            if ($null -ne $server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+          if ($runtimeSha -notmatch "^0{64}$" -or $hasCandidate) {
             $runtime = Get-ChildItem "$HOME\.holo\runtime\*\hai-agent-runtime.exe" | Select-Object -First 1
             if ($null -eq $runtime) {
               throw "installer completed without a managed Windows ARM64 runtime"
