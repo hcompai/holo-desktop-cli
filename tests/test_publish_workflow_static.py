@@ -66,6 +66,10 @@ def test_release_builds_and_materializes_the_windows_arm64_dependency() -> None:
     assert workflow["jobs"]["publish-pypi"]["needs"] == ["build", "windows-arm64-dependency"]
     assert release["needs"] == ["publish-pypi", "windows-arm64-dependency"]
 
+    build_script = (ROOT / "scripts/build_windows_arm64_dependency_wheel.ps1").read_text(encoding="utf-8")
+    assert '"cpython-$PythonVersion-windows-aarch64-none"' in build_script
+    assert '-Filter "$DependencyName-*-win_arm64.whl"' in build_script
+
 
 def test_client_release_refuses_placeholder_runtime_and_smokes_windows_arm64() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8"))

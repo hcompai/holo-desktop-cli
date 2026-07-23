@@ -25,6 +25,7 @@ $Dependency = $Dependencies[0]
 $DependencyName = [string]$Dependency.name
 $DependencyVersion = [string]$Dependency.version
 $PythonVersion = [string]$Manifest.python_version
+$PythonSelector = "cpython-$PythonVersion-windows-aarch64-none"
 $VcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
 
 if (-not $VcpkgRoot -or -not (Test-Path (Join-Path $VcpkgRoot "vcpkg.exe"))) {
@@ -45,12 +46,12 @@ $env:VCPKG_ROOT = $VcpkgRoot
 $env:OPENSSL_DIR = Join-Path $VcpkgRoot "installed\arm64-windows-static-md"
 $env:OPENSSL_STATIC = "1"
 
-& uv python install $PythonVersion --no-bin --no-registry
+& uv python install $PythonSelector --no-bin --no-registry
 if ($LASTEXITCODE -ne 0) {
-    throw "uv failed to install Python $PythonVersion"
+    throw "uv failed to install Python $PythonSelector"
 }
 
-& uv run --no-project --python $PythonVersion --with pip python -m pip wheel `
+& uv run --no-project --python $PythonSelector --with pip python -m pip wheel `
     "$DependencyName==$DependencyVersion" `
     --no-deps `
     --no-binary $DependencyName `
