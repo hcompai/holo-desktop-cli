@@ -9,6 +9,114 @@ permissions:
   contents: read
 
 jobs:
+  windows-arm64-installer:
+    name: fresh Windows ARM64 installer
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.9.18"
+          enable-cache: true
+      - id: runtime_candidate
+        name: Set up the pre-merge HAI runtime candidate
+        if: vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID != ''
+        uses: ./.github/actions/setup-hai-runtime-candidate
+        with:
+          github-token: ${{ secrets.HAI_ACTIONS_READ_TOKEN }}
+          run-id: ${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID }}
+          expected-head-sha: ${{ vars.HAI_WINDOWS_ARM64_CANDIDATE_HEAD_SHA }}
+      - id: dependency
+        name: Build the distributable Windows ARM64 dependency
+        shell: pwsh
+        run: |
+          $root = "$env:RUNNER_TEMP\windows-arm64-installer-candidate"
+          .\scripts\build_windows_arm64_dependency_wheel.ps1 `
+            -WheelDirectory "$root\dependencies" `
+            -ManifestOutput "$root\install\manifest.json" `
+            -WheelBaseUrl "$root\dependencies"
+      - id: client
+        name: Build the Holo wheel consumed by a customer install
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "$env:RUNNER_TEMP\windows-arm64-installer-candidate\holo"
+          uv build --wheel --out-dir $output
+          if ($LASTEXITCODE -ne 0) {
+            throw "failed to build the Holo wheel"
+          }
+          $wheels = @(Get-ChildItem -Path $output -Filter "holo_desktop_cli-*.whl")
+          if ($wheels.Count -ne 1) {
+            throw "expected exactly one Holo wheel, found $($wheels.Count)"
+          }
+          "wheel_path=$($wheels[0].FullName)" >> $env:GITHUB_OUTPUT
+      - name: Install from the pull request checkout
+        shell: pwsh
+        env:
+          HOLO_HOME: ${{ runner.temp }}\holo-installer-smoke
+          HOLO_INSTALL_MANIFEST_URL: ${{ steps.dependency.outputs.manifest_path }}
+          HOLO_INSTALL_PACKAGE: ${{ steps.client.outputs.wheel_path }}
+          UV_NO_BUILD: "1"
+          HAI_RUNTIME_CANDIDATE_ARCHIVE: ${{ steps.runtime_candidate.outputs.archive_path }}
+          HAI_RUNTIME_CANDIDATE_SHA256: ${{ steps.runtime_candidate.outputs.sha256 }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtimeSha = ((Get-Content shas/windows-arm64.txt).Trim() -split "=", 2)[1]
+          $hasCandidate = [bool]$env:HAI_RUNTIME_CANDIDATE_ARCHIVE
+          if ($runtimeSha -match "^0{64}$" -and -not $hasCandidate) {
+            $env:HOLO_INSTALL_SKIP_RUN_SETUP = "1"
+            Write-Host "Runtime artifact is pending; validating the native CLI installer only."
+          }
+
+          $server = $null
+          try {
+            if ($hasCandidate) {
+              $archiveDirectory = Split-Path $env:HAI_RUNTIME_CANDIDATE_ARCHIVE
+              $archiveName = Split-Path $env:HAI_RUNTIME_CANDIDATE_ARCHIVE -Leaf
+              $python = (& uv python find).Trim()
+              $server = Start-Process `
+                -FilePath $python `
+                -ArgumentList "-m", "http.server", "18797", "--bind", "127.0.0.1" `
+                -WorkingDirectory $archiveDirectory `
+                -PassThru
+              for ($attempt = 1; $attempt -le 20; $attempt++) {
+                try {
+                  Invoke-WebRequest "http://127.0.0.1:18797/$archiveName" -Method Head -TimeoutSec 1 | Out-Null
+                  break
+                } catch {
+                  if ($attempt -eq 20) {
+                    throw "candidate runtime loopback server did not become ready"
+                  }
+                  Start-Sleep -Milliseconds 250
+                }
+              }
+              $env:HAI_AGENT_RUNTIME_DOWNLOAD_URL = "http://127.0.0.1:18797/$archiveName"
+              $env:HAI_AGENT_RUNTIME_DOWNLOAD_SHA256 = $env:HAI_RUNTIME_CANDIDATE_SHA256
+            }
+
+            & .\install\install.ps1
+            & "$env:HOLO_HOME\bin\holo.exe" --help
+          } finally {
+            if ($null -ne $server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+          if ($runtimeSha -notmatch "^0{64}$" -or $hasCandidate) {
+            $runtime = Get-ChildItem "$HOME\.holo\runtime\*\hai-agent-runtime.exe" | Select-Object -First 1
+            if ($null -eq $runtime) {
+              throw "installer completed without a managed Windows ARM64 runtime"
+            }
+          }
+      - name: Upload the exact installer candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-installer-candidate
+          path: ${{ runner.temp }}/windows-arm64-installer-candidate/
+          if-no-files-found: warn
+          retention-days: 7
+
   linux-installer:
     name: fresh Linux installer
     runs-on: ubuntu-latest
@@ -49,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest, windows-11-arm]
     runs-on: ${{ matrix.os }}
     env:
       # Backstop for sub-calls that print before main() reconfigures stdout (cp1252 otherwise).
@@ -60,6 +168,19 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+      - name: Prepare OpenSSL for native Python dependencies
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vcpkg = $env:VCPKG_INSTALLATION_ROOT
+          & "$vcpkg\vcpkg.exe" install openssl:arm64-windows-static-md
+          if ($LASTEXITCODE -ne 0) {
+            throw "vcpkg failed to install OpenSSL for Windows ARM64"
+          }
+          "VCPKG_ROOT=$vcpkg" >> $env:GITHUB_ENV
+          "OPENSSL_DIR=$vcpkg\installed\arm64-windows-static-md" >> $env:GITHUB_ENV
+          "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
       - run: uv sync --all-groups
       - name: ruff (lint)
         run: uv run ruff check .

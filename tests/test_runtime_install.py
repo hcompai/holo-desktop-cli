@@ -276,6 +276,13 @@ def test_published_manifest_entry_is_real(platform_key: str, suffix: str) -> Non
     assert artifact.url.endswith(suffix)
 
 
+@pytest.mark.parametrize("platform_key", sorted(runtime_install.MANIFEST))
+def test_manifest_sha_is_lowercase_hex_or_placeholder(platform_key: str) -> None:
+    # bump_runtime.py rewrites digests by regex anchor; a malformed literal would silently never match.
+    sha = runtime_install.MANIFEST[platform_key].sha256
+    assert len(sha) == 64 and set(sha) <= set("0123456789abcdef")
+
+
 _NETWORK_TEST_ENV = "HOLO_RUNTIME_NETWORK_TEST"
 
 
@@ -289,6 +296,8 @@ def test_pinned_artifact_is_published_and_matches_sha(platform_key: str) -> None
     # actually live and its bytes hash to the pinned digest (the real end-to-end
     # guarantee a download relies on). Opt-in: it hits the network and is large.
     artifact = runtime_install.MANIFEST[platform_key]
+    if artifact.sha256 == runtime_install.PLACEHOLDER_SHA256:
+        pytest.skip(f"{platform_key} artifact is not published yet")
     digest = hashlib.sha256()
     with (
         httpx.Client(follow_redirects=True, timeout=httpx.Timeout(30.0, read=600.0)) as client,
@@ -300,12 +309,13 @@ def test_pinned_artifact_is_published_and_matches_sha(platform_key: str) -> None
     assert digest.hexdigest() == artifact.sha256.lower(), f"published bytes do not match pinned sha for {platform_key}"
 
 
-@pytest.mark.parametrize("platform_key", ["darwin-x86_64"])
+@pytest.mark.parametrize("platform_key", ["darwin-x86_64", "windows-arm64"])
 def test_unimplemented_platform_refuses_install(
     platform_key: str, runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Unpublished platforms must be explicit product gaps, not placeholder
-    # release URLs that look real until download/verification time.
+    # Both flavors of unpublished platform (absent from the manifest, or a
+    # placeholder digest awaiting its first release) must fail with actionable
+    # guidance before any download is attempted.
     _clear_resolution_env(monkeypatch, tmp_path)
     monkeypatch.setattr(runtime_install, "platform_key", lambda: platform_key)
     with pytest.raises(runtime_install.RuntimeArtifactUnavailable, match="not published"):
@@ -313,7 +323,7 @@ def test_unimplemented_platform_refuses_install(
     assert installed_binary(PINNED_RUNTIME_VERSION) is None
 
 
-@pytest.mark.parametrize("platform_key", ["darwin-x86_64"])
+@pytest.mark.parametrize("platform_key", ["darwin-x86_64", "windows-arm64"])
 def test_resolve_fails_before_prompting_on_unimplemented_platform(
     platform_key: str, runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
