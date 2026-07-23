@@ -6,10 +6,10 @@ function Fail($Message) {
 }
 
 function Get-HoloWindowsPlatform {
-    $IsWindows = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::IsOSPlatform(
+    $RunningOnWindows = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::IsOSPlatform(
         [System.Runtime.InteropServices.OSPlatform, mscorlib]::Windows
     )
-    if (-not $IsWindows) {
+    if (-not $RunningOnWindows) {
         Fail "Holo Desktop installer does not support this operating system from install.ps1. Use install.sh on macOS or Linux."
     }
 

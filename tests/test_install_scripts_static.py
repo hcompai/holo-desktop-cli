@@ -49,6 +49,8 @@ def test_install_sh_has_supported_and_unsupported_platform_paths() -> None:
 
 def test_install_ps1_targets_supported_windows_architectures_and_user_path() -> None:
     text = (INSTALL_DIR / "install.ps1").read_text()
+    assert "$RunningOnWindows =" in text
+    assert "$IsWindows =" not in text
     assert "[Environment]::SetEnvironmentVariable" in text
     assert "windows-x86_64" in text
     assert "windows-arm64" in text

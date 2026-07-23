@@ -14,6 +14,22 @@ jobs:
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v4
+      # cryptography stopped publishing Windows ARM64 wheels after 46.0.3.
+      # Build the current release against a current OpenSSL in CI instead of
+      # pinning an old wheel with known OpenSSL vulnerabilities. Distribution
+      # must ship the resulting wheel before Windows ARM64 is release-enabled.
+      - name: Prepare OpenSSL for native Python dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vcpkg = $env:VCPKG_INSTALLATION_ROOT
+          & "$vcpkg\vcpkg.exe" install openssl:arm64-windows-static-md
+          if ($LASTEXITCODE -ne 0) {
+            throw "vcpkg failed to install OpenSSL for Windows ARM64"
+          }
+          "VCPKG_ROOT=$vcpkg" >> $env:GITHUB_ENV
+          "OPENSSL_DIR=$vcpkg\installed\arm64-windows-static-md" >> $env:GITHUB_ENV
+          "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
       - name: Install from the pull request checkout
         shell: pwsh
         env:
@@ -89,6 +105,19 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+      - name: Prepare OpenSSL for native Python dependencies
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vcpkg = $env:VCPKG_INSTALLATION_ROOT
+          & "$vcpkg\vcpkg.exe" install openssl:arm64-windows-static-md
+          if ($LASTEXITCODE -ne 0) {
+            throw "vcpkg failed to install OpenSSL for Windows ARM64"
+          }
+          "VCPKG_ROOT=$vcpkg" >> $env:GITHUB_ENV
+          "OPENSSL_DIR=$vcpkg\installed\arm64-windows-static-md" >> $env:GITHUB_ENV
+          "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
       - run: uv sync --all-groups
       - name: ruff (lint)
         run: uv run ruff check .
