@@ -105,12 +105,26 @@ def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
     assert "steps.client.outputs.wheel_path" in rendered_installer
     assert "windows-11-arm" in ci["jobs"]["python"]["strategy"]["matrix"]["os"]
 
-    full_e2e = (ROOT / ".github/workflows/holo-full-e2e.yml").read_text(encoding="utf-8")
-    assert "selector: 'windows-arm64'" in full_e2e
-    assert "os: 'windows-11-arm'" in full_e2e
-    assert "artifact_platform: 'windows-arm64'" in full_e2e
-    assert "release_default: false" in full_e2e
-    assert "matrix.artifact_platform" in full_e2e
+    full_e2e_path = ROOT / ".github/workflows/holo-full-e2e.yml"
+    full_e2e_source = full_e2e_path.read_text(encoding="utf-8")
+    assert "selector: 'windows-arm64'" in full_e2e_source
+    assert "os: 'windows-11-arm'" in full_e2e_source
+    assert "artifact_platform: 'windows-arm64'" in full_e2e_source
+    assert "release_default: false" in full_e2e_source
+    assert "matrix.artifact_platform" in full_e2e_source
+
+    full_e2e = yaml.safe_load(full_e2e_source)
+    openssl = next(
+        step
+        for step in full_e2e["jobs"]["full-e2e"]["steps"]
+        if step.get("name") == "Prepare OpenSSL for Windows ARM64 Python dependencies"
+    )
+    assert openssl["if"] == "matrix.artifact_platform == 'windows-arm64'"
+    assert openssl["shell"] == "pwsh"
+    assert "openssl:arm64-windows-static-md" in openssl["run"]
+    assert "VCPKG_ROOT=" in openssl["run"]
+    assert "OPENSSL_DIR=" in openssl["run"]
+    assert "OPENSSL_STATIC=1" in openssl["run"]
 
 
 def test_windows_arm64_candidate_is_verified_and_consumed_before_merge() -> None:
