@@ -148,7 +148,7 @@ jobs:
                   cd /tmp
                   curl -fsSL file:///work/install/install.sh | bash
                   \"\$HOLO_HOME/bin/holo\" --help >/dev/null
-                  test -x \"\$HOME/.holo/runtime/0.1.9/hai-agent-runtime\"
+                  test -x \"\$HOME/.holo/runtime/0.1.10/hai-agent-runtime\"
                 "
               test -e /usr/include/linux/input.h
             '

@@ -309,27 +309,24 @@ def test_pinned_artifact_is_published_and_matches_sha(platform_key: str) -> None
     assert digest.hexdigest() == artifact.sha256.lower(), f"published bytes do not match pinned sha for {platform_key}"
 
 
-@pytest.mark.parametrize("platform_key", ["darwin-x86_64", "windows-arm64"])
 def test_unimplemented_platform_refuses_install(
-    platform_key: str, runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Both flavors of unpublished platform (absent from the manifest, or a
-    # placeholder digest awaiting its first release) must fail with actionable
-    # guidance before any download is attempted.
+    # A platform absent from the manifest must fail with actionable guidance
+    # before any download is attempted.
     _clear_resolution_env(monkeypatch, tmp_path)
-    monkeypatch.setattr(runtime_install, "platform_key", lambda: platform_key)
+    monkeypatch.setattr(runtime_install, "platform_key", lambda: "darwin-x86_64")
     with pytest.raises(runtime_install.RuntimeArtifactUnavailable, match="not published"):
         _artifact()
     assert installed_binary(PINNED_RUNTIME_VERSION) is None
 
 
-@pytest.mark.parametrize("platform_key", ["darwin-x86_64", "windows-arm64"])
 def test_resolve_fails_before_prompting_on_unimplemented_platform(
-    platform_key: str, runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # The TTY confirm must never ask the user to approve a download that cannot happen.
     _clear_resolution_env(monkeypatch, tmp_path)
-    monkeypatch.setattr(runtime_install, "platform_key", lambda: platform_key)
+    monkeypatch.setattr(runtime_install, "platform_key", lambda: "darwin-x86_64")
 
     def _no_prompt() -> bool:
         raise AssertionError("confirm_download must not be reached for an unimplemented platform")
