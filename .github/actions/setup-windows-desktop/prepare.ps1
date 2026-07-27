@@ -62,6 +62,9 @@ namespace HoloE2E {
         [DllImport("user32.dll")]
         private static extern bool ShowWindowAsync(IntPtr handle, int command);
 
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr handle, uint message, IntPtr wordParameter, IntPtr longParameter);
+
         public static WindowSnapshot[] EnumerateWindows() {
             var windows = new List<WindowSnapshot>();
             EnumWindows(delegate(IntPtr handle, IntPtr parameter) {
@@ -92,6 +95,14 @@ namespace HoloE2E {
             var window = new IntPtr(handle);
             ShowWindowAsync(window, 5);
             return SetForegroundWindow(window);
+        }
+
+        public static bool Hide(long handle) {
+            return ShowWindowAsync(new IntPtr(handle), 0);
+        }
+
+        public static bool Close(long handle) {
+            return PostMessage(new IntPtr(handle), 0x0010, IntPtr.Zero, IntPtr.Zero);
         }
     }
 }
@@ -144,9 +155,21 @@ function Set-HoloDwordPolicy {
 }
 
 function Stop-HoloFirstRunProcesses {
-    foreach ($processName in @("msedge", "SystemSettings", "wsl", "notepad", "CalculatorApp", "calc")) {
+    foreach ($processName in @("msedge", "SystemSettings", "notepad", "CalculatorApp", "calc")) {
         Get-Process -Name $processName -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Close-HoloBlockingWindows {
+    foreach ($window in Get-HoloWindowSnapshot | Where-Object { $_.visible }) {
+        if ($window.class_name -eq "Shell_OOBEProxy") {
+            Write-Host "Closing OOBE proxy window $($window.handle)"
+            [void][HoloE2E.NativeWindows]::Close([long]$window.handle_value)
+        } elseif ($window.process_name -eq "wsl") {
+            Write-Host "Hiding WSL provisioning console $($window.handle)"
+            [void][HoloE2E.NativeWindows]::Hide([long]$window.handle_value)
+        }
     }
 }
 
@@ -185,25 +208,31 @@ function Get-HoloDesktopState {
     )
 
     $blockers = [System.Collections.Generic.List[string]]::new()
-    if ($visibleWindows | Where-Object { $_.title -match "(?i)choose privacy settings|privacy settings for your device" }) {
-        $blockers.Add("privacy_oobe")
+    if (
+        $visibleWindows |
+            Where-Object {
+                $_.class_name -eq "Shell_OOBEProxy" -or
+                $_.title -match "(?i)choose privacy settings|privacy settings for your device"
+            }
+    ) {
+        [void]$blockers.Add("privacy_oobe")
     }
     if ($visibleWindows | Where-Object { $_.process_name -eq "msedge" }) {
-        $blockers.Add("edge_first_run")
+        [void]$blockers.Add("edge_first_run")
     }
-    if (
-        (Get-Process -Name wsl -ErrorAction SilentlyContinue) -or
-        ($visibleWindows | Where-Object { $_.title -match "(?i)Windows Subsystem for Linux|WSL update|install WSL" })
-    ) {
-        $blockers.Add("wsl_prompt")
+    if ($visibleWindows | Where-Object {
+            $_.process_name -eq "wsl" -or
+            $_.title -match "(?i)Windows Subsystem for Linux|WSL update|install WSL"
+        }) {
+        [void]$blockers.Add("wsl_prompt")
     }
     if ($explorerWindows.Count -eq 0) {
-        $blockers.Add("explorer_missing")
+        [void]$blockers.Add("explorer_missing")
     } elseif ($explorerWindows | Where-Object { $_.hung }) {
-        $blockers.Add("explorer_unresponsive")
+        [void]$blockers.Add("explorer_unresponsive")
     }
     if ($null -eq $foreground -or $foreground.process_name -ne "explorer") {
-        $blockers.Add("unexpected_foreground_app")
+        [void]$blockers.Add("unexpected_foreground_app")
     }
 
     [pscustomobject]@{
@@ -219,6 +248,7 @@ function Wait-HoloDesktopReady {
     param([int] $TimeoutSeconds = 120)
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     do {
+        Close-HoloBlockingWindows
         Set-HoloExplorerForeground
         Start-Sleep -Milliseconds 500
         $state = Get-HoloDesktopState
@@ -317,7 +347,7 @@ function Invoke-HoloAppProbes {
 function Write-HoloReadiness {
     param(
         [Parameter(Mandatory = $true)] [object] $State,
-        [Parameter(Mandatory = $true)] [string[]] $Blockers,
+        [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [string[]] $Blockers,
         [Parameter(Mandatory = $true)] [bool] $ScreenshotAvailable
     )
     Write-HoloJson -Value $State.windows -Path $windowsPath
@@ -341,7 +371,7 @@ function Write-HoloReadiness {
 }
 
 $finalState = $null
-$finalBlockers = [System.Collections.Generic.List[string]]::new()
+$finalBlockers = @()
 $screenshotAvailable = $false
 
 try {
@@ -365,40 +395,44 @@ try {
     Restart-HoloExplorer
     $initialReadyState = Wait-HoloDesktopReady
 
-    $probeApps = $env:HOLO_WINDOWS_PROBE_APPS -eq "true"
-    if ($probeApps) {
-        $appProbeResults = Invoke-HoloAppProbes
+    if ($initialReadyState.blockers.Count -gt 0) {
+        $finalState = $initialReadyState
+        $finalBlockers += @($initialReadyState.blockers)
+        Write-HoloJson -Value @() -Path $appProbesPath
     } else {
-        $appProbeResults = @()
-    }
-    Write-HoloJson -Value @($appProbeResults) -Path $appProbesPath
+        $probeApps = $env:HOLO_WINDOWS_PROBE_APPS -eq "true"
+        if ($probeApps) {
+            $appProbeResults = Invoke-HoloAppProbes
+        } else {
+            $appProbeResults = @()
+        }
+        Write-HoloJson -Value @($appProbeResults) -Path $appProbesPath
 
-    Stop-HoloFirstRunProcesses
-    Restart-HoloExplorer
-    $settleSeconds = [int]$env:HOLO_WINDOWS_SETTLE_SECONDS
-    if ($settleSeconds -gt 0) {
-        Start-Sleep -Seconds $settleSeconds
-    }
-    $finalState = Wait-HoloDesktopReady
-    foreach ($blocker in $finalState.blockers) {
-        $finalBlockers.Add($blocker)
-    }
-    if ($probeApps -and ($appProbeResults | Where-Object { -not $_.passed })) {
-        $finalBlockers.Add("app_probe_failed")
+        Stop-HoloFirstRunProcesses
+        Restart-HoloExplorer
+        $settleSeconds = [int]$env:HOLO_WINDOWS_SETTLE_SECONDS
+        if ($settleSeconds -gt 0) {
+            Start-Sleep -Seconds $settleSeconds
+        }
+        $finalState = Wait-HoloDesktopReady
+        $finalBlockers += @($finalState.blockers)
+        if ($probeApps -and ($appProbeResults | Where-Object { -not $_.passed })) {
+            $finalBlockers += "app_probe_failed"
+        }
     }
 
     $observedArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
     if ($observedArchitecture -ne $env:HOLO_WINDOWS_EXPECTED_ARCHITECTURE) {
-        $finalBlockers.Add("architecture_mismatch")
+        $finalBlockers += "architecture_mismatch"
     }
 
     $screenshotAvailable = Save-HoloScreenshot -Path $screenshotPath
     if (-not $screenshotAvailable) {
-        $finalBlockers.Add("screenshot_unavailable")
+        $finalBlockers += "screenshot_unavailable"
     }
 } catch {
     Write-Error -ErrorRecord $_
-    $finalBlockers.Add("normalization_failed")
+    $finalBlockers += "normalization_failed"
     if ($null -eq $finalState) {
         $finalState = Get-HoloDesktopState
     }
@@ -407,7 +441,7 @@ try {
     }
     $screenshotAvailable = Save-HoloScreenshot -Path $screenshotPath
     if (-not $screenshotAvailable) {
-        $finalBlockers.Add("screenshot_unavailable")
+        $finalBlockers += "screenshot_unavailable"
     }
 } finally {
     if ($null -eq $finalState) {
