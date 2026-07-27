@@ -126,6 +126,15 @@ def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
     assert "OPENSSL_DIR=" in openssl["run"]
     assert "OPENSSL_STATIC=1" in openssl["run"]
 
+    step_names = [step.get("name") for step in full_e2e["jobs"]["full-e2e"]["steps"]]
+    assert step_names.index("Install dependencies") < step_names.index("Prepare Windows ARM64 desktop")
+    assert step_names.index("Prepare Windows ARM64 desktop") < step_names.index(
+        "List full e2e shard task ids"
+    )
+    assert step_names.index("Upload Windows ARM64 desktop readiness") < step_names.index(
+        "Run full live e2e suite"
+    )
+
 
 def test_windows_arm64_candidate_is_verified_and_consumed_before_merge() -> None:
     action = yaml.safe_load(

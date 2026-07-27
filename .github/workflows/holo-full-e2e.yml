@@ -136,22 +136,6 @@ jobs:
             echo "HOLO_E2E_REPORT_DIR=$RUNNER_TEMP/holo-full-e2e-report-${{ matrix.artifact_platform }}-${{ matrix.shard_index }}"
           } >> "$GITHUB_ENV"
 
-      - name: Prepare Windows ARM64 desktop
-        if: matrix.artifact_platform == 'windows-arm64'
-        uses: ./.github/actions/setup-windows-desktop
-        with:
-          expected-architecture: ARM64
-          probe-apps: "true"
-
-      - name: Upload Windows ARM64 desktop readiness
-        if: always() && matrix.artifact_platform == 'windows-arm64'
-        uses: actions/upload-artifact@v4
-        with:
-          name: holo-windows-desktop-readiness-${{ github.run_id }}-shard-${{ matrix.shard_index }}
-          path: ${{ runner.temp }}/holo-windows-desktop-readiness/
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Log GitHub OIDC claims
         uses: actions/github-script@v7
         with:
@@ -357,6 +341,25 @@ jobs:
           cd "$RUNNER_TEMP"
           curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/install/install.sh" | bash
           "$HOLO_HOME/bin/holo" --help
+
+      # Run this after all dependency/bootstrap work so late startup surfaces,
+      # including the Windows 11 ARM WSL prompt, cannot contaminate the first
+      # model observation.
+      - name: Prepare Windows ARM64 desktop
+        if: matrix.artifact_platform == 'windows-arm64'
+        uses: ./.github/actions/setup-windows-desktop
+        with:
+          expected-architecture: ARM64
+          probe-apps: "true"
+
+      - name: Upload Windows ARM64 desktop readiness
+        if: always() && matrix.artifact_platform == 'windows-arm64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: holo-windows-desktop-readiness-${{ github.run_id }}-shard-${{ matrix.shard_index }}
+          path: ${{ runner.temp }}/holo-windows-desktop-readiness/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: List full e2e shard task ids
         shell: bash
