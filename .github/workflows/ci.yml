@@ -62,6 +62,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $runtimeSha = ((Get-Content shas/windows-arm64.txt).Trim() -split "=", 2)[1]
+          $installerPath = (Resolve-Path .\install\install.ps1).Path
           $hasCandidate = [bool]$env:HAI_RUNTIME_CANDIDATE_ARCHIVE
           if ($runtimeSha -match "^0{64}$" -and -not $hasCandidate) {
             $env:HOLO_INSTALL_SKIP_RUN_SETUP = "1"
@@ -94,8 +95,13 @@ jobs:
               $env:HAI_AGENT_RUNTIME_DOWNLOAD_SHA256 = $env:HAI_RUNTIME_CANDIDATE_SHA256
             }
 
-            & .\install\install.ps1
-            & "$env:HOLO_HOME\bin\holo.exe" --help
+            Push-Location $env:RUNNER_TEMP
+            try {
+              & $installerPath
+              & "$env:HOLO_HOME\bin\holo.exe" --help
+            } finally {
+              Pop-Location
+            }
           } finally {
             if ($null -ne $server -and -not $server.HasExited) {
               Stop-Process -Id $server.Id -Force
