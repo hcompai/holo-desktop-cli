@@ -158,9 +158,7 @@ function Set-HoloDwordPolicy {
 function Stop-HoloFirstRunProcesses {
     foreach ($processName in @(
             "msedge",
-            "ShellHost",
             "SystemSettings",
-            "UserOOBEBroker",
             "notepad",
             "CalculatorApp",
             "calc"
@@ -172,10 +170,7 @@ function Stop-HoloFirstRunProcesses {
 
 function Close-HoloBlockingWindows {
     foreach ($window in Get-HoloWindowSnapshot | Where-Object { $_.visible }) {
-        if ($window.class_name -eq "Shell_OOBEProxy") {
-            Write-Host "Closing OOBE proxy window $($window.handle)"
-            [void][HoloE2E.NativeWindows]::Close([long]$window.handle_value)
-        } elseif ($window.process_name -eq "wsl") {
+        if ($window.process_name -eq "wsl") {
             Write-Host "Hiding WSL provisioning console $($window.handle)"
             [void][HoloE2E.NativeWindows]::Hide([long]$window.handle_value)
         }
@@ -210,57 +205,94 @@ function Test-HoloPrivacyExperience {
 }
 
 function Complete-HoloPrivacyExperience {
-    $privacyExperienceVisible = Test-HoloPrivacyExperience
-    if ($privacyExperienceVisible -ne $true) {
-        Write-Host "Privacy OOBE is not visible; no semantic completion is required."
-        return $false
-    }
-
-    Write-Host "Privacy OOBE is visible; looking for its enabled Accept button."
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $elements = $root.FindAll(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        [System.Windows.Automation.Condition]::TrueCondition
+    $oobeWindows = @(
+        Get-HoloWindowSnapshot |
+            Where-Object { $_.visible -and $_.class_name -eq "Shell_OOBEProxy" }
     )
-    $acceptButton = $null
-    foreach ($element in $elements) {
-        if (
-            $element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
-            $element.Current.IsEnabled -and
-            $element.Current.Name -match "^(?i:accept)$"
-        ) {
-            $acceptButton = $element
-            break
-        }
-    }
-    if ($null -eq $acceptButton) {
-        Write-Warning "Privacy OOBE is visible but no enabled Accept button was exposed through UI Automation."
+    if ($oobeWindows.Count -eq 0 -and (Test-HoloPrivacyExperience) -ne $true) {
+        Write-Host "Privacy OOBE proxy is absent; no semantic completion is required."
         return $false
     }
 
-    try {
-        $invokePattern = $acceptButton.GetCurrentPattern(
-            [System.Windows.Automation.InvokePattern]::Pattern
-        )
-        $invokePattern.Invoke()
-        Write-Host "Invoked the privacy OOBE Accept button through UI Automation."
-    } catch {
-        Write-Warning "Privacy OOBE Accept invocation failed: $($_.Exception.GetType().Name): $($_.Exception.Message)"
-        return $false
-    }
-
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    Write-Host "Privacy OOBE proxy is visible; completing its Next/Accept sequence through UI Automation."
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(120)
+    $invocationCount = 0
     do {
-        Start-Sleep -Milliseconds 500
+        $oobeWindows = @(
+            Get-HoloWindowSnapshot |
+                Where-Object { $_.visible -and $_.class_name -eq "Shell_OOBEProxy" }
+        )
         $privacyExperienceVisible = Test-HoloPrivacyExperience
-        if ($privacyExperienceVisible -eq $false) {
-            Write-Host "Privacy OOBE disappeared after semantic completion."
+        if ($oobeWindows.Count -eq 0 -and $privacyExperienceVisible -eq $false) {
+            Write-Host "Privacy OOBE proxy disappeared after semantic completion."
             return $true
         }
-    } while ([DateTimeOffset]::UtcNow -lt $deadline)
 
-    Write-Warning "Privacy OOBE remained visible after its Accept button was invoked."
+        try {
+            $root = [System.Windows.Automation.AutomationElement]::RootElement
+            $elements = $root.FindAll(
+                [System.Windows.Automation.TreeScope]::Descendants,
+                [System.Windows.Automation.Condition]::TrueCondition
+            )
+            $navigationButton = $null
+            foreach ($wantedName in @("Accept", "Next")) {
+                foreach ($element in $elements) {
+                    if (
+                        $element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
+                        $element.Current.IsEnabled -and
+                        $element.Current.Name -match "^(?i:$wantedName)$"
+                    ) {
+                        $navigationButton = $element
+                        break
+                    }
+                }
+                if ($null -ne $navigationButton) {
+                    break
+                }
+            }
+            if ($null -ne $navigationButton) {
+                $buttonName = $navigationButton.Current.Name
+                $invokePattern = $navigationButton.GetCurrentPattern(
+                    [System.Windows.Automation.InvokePattern]::Pattern
+                )
+                $invokePattern.Invoke()
+                $invocationCount += 1
+                Write-Host "Invoked privacy OOBE button '$buttonName' through UI Automation."
+                Start-Sleep -Seconds 2
+                continue
+            }
+        } catch {
+            Write-Warning "Privacy OOBE UI Automation pass failed: $($_.Exception.GetType().Name): $($_.Exception.Message)"
+        }
+
+        Write-Host "Waiting for the privacy OOBE navigation controls to become available."
+        Start-Sleep -Seconds 2
+    } while (
+        [DateTimeOffset]::UtcNow -lt $deadline -and
+        $invocationCount -lt 10
+    )
+
+    Write-Warning (
+        "Privacy OOBE did not complete naturally after {0} semantic navigation invocation(s)." -f
+        $invocationCount
+    )
     return $false
+}
+
+function Assert-HoloPrivacyExperienceCompleted {
+    $oobeWindows = @(
+        Get-HoloWindowSnapshot |
+            Where-Object { $_.visible -and $_.class_name -eq "Shell_OOBEProxy" }
+    )
+    $privacyExperienceVisible = Test-HoloPrivacyExperience
+    if ($oobeWindows.Count -gt 0 -or $privacyExperienceVisible -ne $false) {
+        throw (
+            "Privacy OOBE completion could not be proven: proxy_windows={0}, semantic_visible={1}" -f
+            $oobeWindows.Count,
+            $privacyExperienceVisible
+        )
+    }
+    Write-Host "Privacy OOBE natural completion is proven."
 }
 
 function Set-HoloExplorerForeground {
@@ -484,6 +516,7 @@ try {
         -Value 1
 
     [void](Complete-HoloPrivacyExperience)
+    Assert-HoloPrivacyExperienceCompleted
     Stop-HoloFirstRunProcesses
     Restart-HoloExplorer
     $initialReadyState = Wait-HoloDesktopReady
