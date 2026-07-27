@@ -174,6 +174,7 @@ function Stop-HoloFirstRunProcesses {
     foreach ($processName in @(
             "msedge",
             "SystemSettings",
+            "wsl",
             "notepad",
             "CalculatorApp",
             "calc"
@@ -186,8 +187,10 @@ function Stop-HoloFirstRunProcesses {
 function Close-HoloBlockingWindows {
     foreach ($window in Get-HoloWindowSnapshot | Where-Object { $_.visible }) {
         if ($window.process_name -eq "wsl") {
-            Write-Host "Hiding WSL provisioning console $($window.handle)"
-            [void][HoloE2E.NativeWindows]::Hide([long]$window.handle_value)
+            Write-Host "Closing WSL provisioning console $($window.handle)"
+            [void][HoloE2E.NativeWindows]::Close([long]$window.handle_value)
+            Get-Process -Id $window.process_id -ErrorAction SilentlyContinue |
+                Stop-Process -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -335,11 +338,7 @@ function Get-HoloDesktopState {
     $privacyExperienceVisible = Test-HoloPrivacyExperience
 
     $blockers = [System.Collections.Generic.List[string]]::new()
-    if (
-        (Get-Process -Name UserOOBEBroker -ErrorAction SilentlyContinue) -or
-        $oobeWindows.Count -gt 0 -or
-        $privacyExperienceVisible -eq $true
-    ) {
+    if ($oobeWindows.Count -gt 0 -or $privacyExperienceVisible -eq $true) {
         [void]$blockers.Add("privacy_oobe")
     }
     if ($null -eq $privacyExperienceVisible) {
