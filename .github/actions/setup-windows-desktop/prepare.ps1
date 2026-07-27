@@ -107,6 +107,7 @@ namespace HoloE2E {
     }
 }
 "@
+Add-Type -AssemblyName UIAutomationClient
 
 function Get-HoloWindowSnapshot {
     $foregroundHandle = [HoloE2E.NativeWindows]::ForegroundHandle()
@@ -157,6 +158,7 @@ function Set-HoloDwordPolicy {
 function Stop-HoloFirstRunProcesses {
     foreach ($processName in @(
             "msedge",
+            "ShellHost",
             "SystemSettings",
             "UserOOBEBroker",
             "notepad",
@@ -185,6 +187,26 @@ function Restart-HoloExplorer {
         Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 1
     Start-Process -FilePath "$env:WINDIR\explorer.exe" -ArgumentList "shell:desktop"
+}
+
+function Test-HoloPrivacyExperience {
+    try {
+        $root = [System.Windows.Automation.AutomationElement]::RootElement
+        $elements = $root.FindAll(
+            [System.Windows.Automation.TreeScope]::Descendants,
+            [System.Windows.Automation.Condition]::TrueCondition
+        )
+        foreach ($element in $elements) {
+            $name = $element.Current.Name
+            if ($name -match "(?i)choose privacy settings for your device|privacy settings for your device") {
+                return $true
+            }
+        }
+        return $false
+    } catch {
+        Write-Warning "UI Automation desktop probe failed: $($_.Exception.GetType().Name): $($_.Exception.Message)"
+        return $null
+    }
 }
 
 function Set-HoloExplorerForeground {
@@ -220,10 +242,18 @@ function Get-HoloDesktopState {
                 $_.title -match "(?i)choose privacy settings|privacy settings for your device"
             }
     )
+    $privacyExperienceVisible = Test-HoloPrivacyExperience
 
     $blockers = [System.Collections.Generic.List[string]]::new()
-    if ((Get-Process -Name UserOOBEBroker -ErrorAction SilentlyContinue) -or $oobeWindows.Count -gt 0) {
+    if (
+        (Get-Process -Name UserOOBEBroker -ErrorAction SilentlyContinue) -or
+        $oobeWindows.Count -gt 0 -or
+        $privacyExperienceVisible -eq $true
+    ) {
         [void]$blockers.Add("privacy_oobe")
+    }
+    if ($null -eq $privacyExperienceVisible) {
+        [void]$blockers.Add("desktop_oracle_unavailable")
     }
     if ($visibleWindows | Where-Object { $_.process_name -eq "msedge" }) {
         [void]$blockers.Add("edge_first_run")

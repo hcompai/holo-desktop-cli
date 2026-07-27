@@ -21,6 +21,7 @@ class WindowsDesktopBlocker(StrEnum):
     APP_PROBE_FAILED = "app_probe_failed"
     ARCHITECTURE_MISMATCH = "architecture_mismatch"
     NORMALIZATION_FAILED = "normalization_failed"
+    DESKTOP_ORACLE_UNAVAILABLE = "desktop_oracle_unavailable"
 
 
 class WindowsDesktopReadiness(BaseModel):
