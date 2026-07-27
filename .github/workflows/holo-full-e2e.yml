@@ -17,6 +17,10 @@ on:
         description: "Run with fast mode (--fast: one screenshot, no thinking, smaller uploads)"
         type: boolean
         default: false
+      readiness_only:
+        description: "Temporary three-run Windows ARM64 desktop readiness spike"
+        type: boolean
+        default: false
   pull_request:
     types: [labeled]
 
@@ -25,8 +29,37 @@ permissions:
   id-token: write
 
 jobs:
+  windows-arm64-readiness-spike:
+    name: Windows ARM64 readiness sample ${{ matrix.sample }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.readiness_only == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: [1, 2, 3]
+    runs-on: windows-11-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Normalize and probe Windows ARM64 desktop
+        uses: ./.github/actions/setup-windows-desktop
+        with:
+          expected-architecture: ARM64
+          probe-apps: "true"
+          settle-seconds: "30"
+
+      - name: Upload Windows desktop readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-desktop-readiness-${{ github.run_id }}-sample-${{ matrix.sample }}
+          path: ${{ runner.temp }}/holo-windows-desktop-readiness/
+          if-no-files-found: error
+          retention-days: 14
+
   plan:
     name: plan full-e2e matrix
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.readiness_only != 'true'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.result }}
