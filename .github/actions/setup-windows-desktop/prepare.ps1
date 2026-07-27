@@ -358,7 +358,7 @@ function Get-HoloDesktopState {
     } elseif ($explorerWindows | Where-Object { $_.hung }) {
         [void]$blockers.Add("explorer_unresponsive")
     }
-    if ($null -eq $foreground -or $foreground.process_name -ne "explorer") {
+    if ($null -ne $foreground -and $foreground.process_name -ne "explorer") {
         [void]$blockers.Add("unexpected_foreground_app")
     }
 
