@@ -209,6 +209,60 @@ function Test-HoloPrivacyExperience {
     }
 }
 
+function Complete-HoloPrivacyExperience {
+    $privacyExperienceVisible = Test-HoloPrivacyExperience
+    if ($privacyExperienceVisible -ne $true) {
+        Write-Host "Privacy OOBE is not visible; no semantic completion is required."
+        return $false
+    }
+
+    Write-Host "Privacy OOBE is visible; looking for its enabled Accept button."
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $elements = $root.FindAll(
+        [System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.Condition]::TrueCondition
+    )
+    $acceptButton = $null
+    foreach ($element in $elements) {
+        if (
+            $element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
+            $element.Current.IsEnabled -and
+            $element.Current.Name -match "^(?i:accept)$"
+        ) {
+            $acceptButton = $element
+            break
+        }
+    }
+    if ($null -eq $acceptButton) {
+        Write-Warning "Privacy OOBE is visible but no enabled Accept button was exposed through UI Automation."
+        return $false
+    }
+
+    try {
+        $invokePattern = $acceptButton.GetCurrentPattern(
+            [System.Windows.Automation.InvokePattern]::Pattern
+        )
+        $invokePattern.Invoke()
+        Write-Host "Invoked the privacy OOBE Accept button through UI Automation."
+    } catch {
+        Write-Warning "Privacy OOBE Accept invocation failed: $($_.Exception.GetType().Name): $($_.Exception.Message)"
+        return $false
+    }
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    do {
+        Start-Sleep -Milliseconds 500
+        $privacyExperienceVisible = Test-HoloPrivacyExperience
+        if ($privacyExperienceVisible -eq $false) {
+            Write-Host "Privacy OOBE disappeared after semantic completion."
+            return $true
+        }
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    Write-Warning "Privacy OOBE remained visible after its Accept button was invoked."
+    return $false
+}
+
 function Set-HoloExplorerForeground {
     $windows = Get-HoloWindowSnapshot
     $candidate = $windows |
@@ -429,6 +483,7 @@ try {
         -Name "HideFirstRunExperience" `
         -Value 1
 
+    [void](Complete-HoloPrivacyExperience)
     Stop-HoloFirstRunProcesses
     Restart-HoloExplorer
     $initialReadyState = Wait-HoloDesktopReady
