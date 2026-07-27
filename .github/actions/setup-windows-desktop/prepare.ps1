@@ -155,7 +155,14 @@ function Set-HoloDwordPolicy {
 }
 
 function Stop-HoloFirstRunProcesses {
-    foreach ($processName in @("msedge", "SystemSettings", "notepad", "CalculatorApp", "calc")) {
+    foreach ($processName in @(
+            "msedge",
+            "SystemSettings",
+            "UserOOBEBroker",
+            "notepad",
+            "CalculatorApp",
+            "calc"
+        )) {
         Get-Process -Name $processName -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
     }
@@ -206,15 +213,16 @@ function Get-HoloDesktopState {
                 $_.class_name -in @("CabinetWClass", "Shell_TrayWnd", "Progman", "WorkerW")
             }
     )
-
-    $blockers = [System.Collections.Generic.List[string]]::new()
-    if (
+    $oobeWindows = @(
         $visibleWindows |
             Where-Object {
                 $_.class_name -eq "Shell_OOBEProxy" -or
                 $_.title -match "(?i)choose privacy settings|privacy settings for your device"
             }
-    ) {
+    )
+
+    $blockers = [System.Collections.Generic.List[string]]::new()
+    if ((Get-Process -Name UserOOBEBroker -ErrorAction SilentlyContinue) -or $oobeWindows.Count -gt 0) {
         [void]$blockers.Add("privacy_oobe")
     }
     if ($visibleWindows | Where-Object { $_.process_name -eq "msedge" }) {
