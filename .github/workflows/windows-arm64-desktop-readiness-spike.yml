@@ -1,0 +1,36 @@
+name: Windows ARM64 Desktop Readiness Spike
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    name: readiness sample ${{ matrix.sample }}
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: [1, 2, 3]
+    runs-on: windows-11-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Normalize and probe Windows ARM64 desktop
+        id: readiness
+        uses: ./.github/actions/setup-windows-desktop
+        with:
+          expected-architecture: ARM64
+          probe-apps: "true"
+          settle-seconds: "30"
+
+      - name: Upload Windows desktop readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-desktop-readiness-${{ github.run_id }}-sample-${{ matrix.sample }}
+          path: ${{ runner.temp }}/holo-windows-desktop-readiness/
+          if-no-files-found: error
+          retention-days: 14
