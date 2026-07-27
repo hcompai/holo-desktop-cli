@@ -65,6 +65,12 @@ namespace HoloE2E {
         [DllImport("user32.dll")]
         private static extern bool PostMessage(IntPtr handle, uint message, IntPtr wordParameter, IntPtr longParameter);
 
+        [DllImport("user32.dll")]
+        private static extern bool SetCursorPos(int x, int y);
+
+        [DllImport("user32.dll")]
+        private static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extraInfo);
+
         public static WindowSnapshot[] EnumerateWindows() {
             var windows = new List<WindowSnapshot>();
             EnumWindows(delegate(IntPtr handle, IntPtr parameter) {
@@ -103,6 +109,15 @@ namespace HoloE2E {
 
         public static bool Close(long handle) {
             return PostMessage(new IntPtr(handle), 0x0010, IntPtr.Zero, IntPtr.Zero);
+        }
+
+        public static bool Click(int x, int y) {
+            if (!SetCursorPos(x, y)) {
+                return false;
+            }
+            mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+            mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+            return true;
         }
     }
 }
@@ -214,7 +229,22 @@ function Complete-HoloPrivacyExperience {
         return $false
     }
 
-    Write-Host "Privacy OOBE proxy is visible; completing its Next/Accept sequence through UI Automation."
+    Add-Type -AssemblyName System.Windows.Forms
+    $screenBounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $navigationX = $screenBounds.Left + [Math]::Round($screenBounds.Width * 0.847)
+    $navigationY = $screenBounds.Top + [Math]::Round($screenBounds.Height * 0.854)
+
+    $navigationMessage = (
+        "Privacy OOBE proxy is visible; navigating its fixed bottom-right action at " +
+        "({0}, {1}) within screen bounds {2}x{3}."
+    ) -f
+        $navigationX,
+        $navigationY,
+        $screenBounds.Width,
+        $screenBounds.Height
+    Write-Host $navigationMessage
+    [void](Save-HoloScreenshot -Path (Join-Path $artifactDirectory "privacy-oobe-before.png"))
+
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(120)
     $invocationCount = 0
     do {
@@ -228,52 +258,26 @@ function Complete-HoloPrivacyExperience {
             return $true
         }
 
-        try {
-            $root = [System.Windows.Automation.AutomationElement]::RootElement
-            $elements = $root.FindAll(
-                [System.Windows.Automation.TreeScope]::Descendants,
-                [System.Windows.Automation.Condition]::TrueCondition
-            )
-            $navigationButton = $null
-            foreach ($wantedName in @("Accept", "Next")) {
-                foreach ($element in $elements) {
-                    if (
-                        $element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
-                        $element.Current.IsEnabled -and
-                        $element.Current.Name -match "^(?i:$wantedName)$"
-                    ) {
-                        $navigationButton = $element
-                        break
-                    }
-                }
-                if ($null -ne $navigationButton) {
-                    break
-                }
-            }
-            if ($null -ne $navigationButton) {
-                $buttonName = $navigationButton.Current.Name
-                $invokePattern = $navigationButton.GetCurrentPattern(
-                    [System.Windows.Automation.InvokePattern]::Pattern
-                )
-                $invokePattern.Invoke()
-                $invocationCount += 1
-                Write-Host "Invoked privacy OOBE button '$buttonName' through UI Automation."
-                Start-Sleep -Seconds 2
-                continue
-            }
-        } catch {
-            Write-Warning "Privacy OOBE UI Automation pass failed: $($_.Exception.GetType().Name): $($_.Exception.Message)"
+        $oobeWindow = $oobeWindows | Select-Object -First 1
+        [void][HoloE2E.NativeWindows]::Activate([long]$oobeWindow.handle_value)
+        Start-Sleep -Milliseconds 250
+        if (-not [HoloE2E.NativeWindows]::Click($navigationX, $navigationY)) {
+            throw "Failed to inject the privacy OOBE navigation click at ($navigationX, $navigationY)."
         }
 
-        Write-Host "Waiting for the privacy OOBE navigation controls to become available."
-        Start-Sleep -Seconds 2
+        $invocationCount += 1
+        Write-Host "Injected privacy OOBE navigation click $invocationCount."
+        Start-Sleep -Seconds 3
+        [void](Save-HoloScreenshot -Path (
+                Join-Path $artifactDirectory "privacy-oobe-after-click-$invocationCount.png"
+            ))
     } while (
         [DateTimeOffset]::UtcNow -lt $deadline -and
-        $invocationCount -lt 10
+        $invocationCount -lt 6
     )
 
     Write-Warning (
-        "Privacy OOBE did not complete naturally after {0} semantic navigation invocation(s)." -f
+        "Privacy OOBE did not complete naturally after {0} guarded navigation click(s)." -f
         $invocationCount
     )
     return $false
