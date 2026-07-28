@@ -1,0 +1,33 @@
+name: Setup Windows desktop
+description: Normalize and prove the interactive Windows desktop used by Holo live E2E jobs.
+
+inputs:
+  expected-architecture:
+    description: Native runner architecture required by the job.
+    required: true
+  probe-apps:
+    description: Open and close the native app canaries before reporting readiness.
+    required: false
+    default: "false"
+  settle-seconds:
+    description: Seconds the normalized desktop must remain ready before the final probe.
+    required: false
+    default: "2"
+
+outputs:
+  artifact-path:
+    description: Directory containing readiness JSON and diagnostics.
+    value: ${{ steps.prepare.outputs.artifact-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Normalize and probe Windows desktop
+      id: prepare
+      shell: pwsh
+      env:
+        HOLO_WINDOWS_EXPECTED_ARCHITECTURE: ${{ inputs.expected-architecture }}
+        HOLO_WINDOWS_PROBE_APPS: ${{ inputs.probe-apps }}
+        HOLO_WINDOWS_SETTLE_SECONDS: ${{ inputs.settle-seconds }}
+      run: |
+        & "$env:GITHUB_ACTION_PATH/prepare.ps1"

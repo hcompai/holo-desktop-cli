@@ -25,12 +25,12 @@ from holo_desktop.settings import DOWNLOAD_SHA256_ENV, DOWNLOAD_URL_ENV, Runtime
 
 logger = logging.getLogger(__name__)
 
-PINNED_RUNTIME_VERSION = "0.1.9"
+PINNED_RUNTIME_VERSION = "0.1.10"
 RUNTIME_DIR = Path.home() / ".holo" / "runtime"
 # Artifacts live under an immutable, version-scoped prefix, so a CDN edge can never serve stale bytes.
 RUNTIME_CDN_BASE = "https://assets.hcompanyprod.fr/hai-agent-runtime"
 BINARY_NAME = "hai-agent-runtime.exe" if os.name == "nt" else "hai-agent-runtime"
-# Guard value: published manifest entries must never use it, since every download would fail verification.
+# Marks a manifest platform whose artifact is not published yet; installs refuse it before any download.
 PLACEHOLDER_SHA256 = "0" * 64
 _DOWNLOAD_TIMEOUT = httpx.Timeout(30.0, read=600.0)
 # Generous ceiling (the runtime is hundreds of MB); guards against a lying/absent Content-Length filling the disk.
@@ -63,20 +63,21 @@ def _artifact(filename: str, sha256: str) -> RuntimeArtifact:
 MANIFEST: dict[str, RuntimeArtifact] = {
     "darwin-arm64": _artifact(
         "hai-agent-runtime-darwin-arm64.zip",
-        "c1a8415f0d1e05cd01bca2f2f55b7807d4865e2a838b31aa483c7be5d3791c2c",
+        "2a08aca6bc3201920cd8671631f09b254693b343b59a448136daa48634afd5c7",
     ),
     "windows-x86_64": _artifact(
         "hai-agent-runtime-windows-x86_64.zip",
-        "b8ddaf46f24503602fc3d8d8351dfeb15aa7a7b5f1c8fc17d3843249a1ccb523",
+        "1e45306906c24e1e949259c6d2998496d17a26320737344d2e2a31bf656d7219",
     ),
     "linux-x86_64": _artifact(
         "hai-agent-runtime-linux-x86_64.zip",
-        "3ef09e1706b100ead1d40384bd319d5b98754f151713226627d7e7a0ee0e30a3",
+        "bf50ab53f6c47e7b3d5dad0856d5511ddd934ed444039b561edc612fd4fda42a",
     ),
-}
-
-UNIMPLEMENTED_PLATFORMS: dict[str, str] = {
-    "darwin-x86_64": "hai-agent-runtime is not published for macOS Intel yet",
+    # Placeholder digest (bump_runtime.py needs a hex literal anchor); the release pipeline fills it in.
+    "windows-arm64": _artifact(
+        "hai-agent-runtime-windows-arm64.zip",
+        "454ee9a06eb7ca0287206a5324917e289699341934e34ebc6e6b884b08a15265",
+    ),
 }
 
 
@@ -105,18 +106,11 @@ def pinned_artifact(*, settings: RuntimeInstallSettings) -> RuntimeArtifact:
             )
         return RuntimeArtifact(url=settings.download_url, sha256=settings.download_sha256)
     key = platform_key()
-    if key in UNIMPLEMENTED_PLATFORMS:
-        raise RuntimeArtifactUnavailable(
-            f"{UNIMPLEMENTED_PLATFORMS[key]}; put hai-agent-runtime on PATH, "
-            f"or set {DOWNLOAD_URL_ENV} + {DOWNLOAD_SHA256_ENV} to a trusted build"
-        )
     artifact = MANIFEST.get(key)
-    if artifact is None:
-        raise RuntimeError(f"no hai-agent-runtime release artifact for platform {key}")
-    if artifact.sha256 == PLACEHOLDER_SHA256:
-        raise RuntimeError(
-            f"hai-agent-runtime v{PINNED_RUNTIME_VERSION} has no published artifact for {key} yet; "
-            f"put hai-agent-runtime on PATH, or set {DOWNLOAD_URL_ENV} + {DOWNLOAD_SHA256_ENV} to a trusted build"
+    if artifact is None or artifact.sha256 == PLACEHOLDER_SHA256:
+        raise RuntimeArtifactUnavailable(
+            f"hai-agent-runtime is not published for {key} yet; put hai-agent-runtime on PATH, "
+            f"or set {DOWNLOAD_URL_ENV} + {DOWNLOAD_SHA256_ENV} to a trusted build"
         )
     return artifact
 

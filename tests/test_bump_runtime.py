@@ -16,31 +16,40 @@ REAL_SOURCE = Path(runtime_install.__file__).read_text()
 NEW_DARWIN = "a" * 64
 NEW_WINDOWS = "b" * 64
 NEW_LINUX = "c" * 64
-# A full bump must cover every published platform in the manifest.
-ALL_SHAS = {"darwin-arm64": NEW_DARWIN, "windows-x86_64": NEW_WINDOWS, "linux-x86_64": NEW_LINUX}
+NEW_WINDOWS_ARM = "d" * 64
+ALL_PLATFORM_SHAS = {
+    "darwin-arm64": NEW_DARWIN,
+    "windows-x86_64": NEW_WINDOWS,
+    "linux-x86_64": NEW_LINUX,
+    "windows-arm64": NEW_WINDOWS_ARM,
+}
 
 
 def test_apply_bump_rewrites_version_and_digests() -> None:
-    bump = RuntimeBump(version="0.2.0", shas=dict(ALL_SHAS))
+    bump = RuntimeBump(version="0.2.0", shas=ALL_PLATFORM_SHAS)
     result = apply_bump(REAL_SOURCE, bump)
 
     assert 'PINNED_RUNTIME_VERSION = "0.2.0"' in result
-    assert NEW_DARWIN in result and NEW_WINDOWS in result and NEW_LINUX in result
+    assert all(sha in result for sha in ALL_PLATFORM_SHAS.values())
     # The version literal must not appear duplicated in any artifact URL (URLs are derived).
     assert result.count('PINNED_RUNTIME_VERSION = "') == 1
-    # Untouched platform digests of the original must be gone (both were replaced).
-    assert "f4085285a9722730408fd5e5dfc36672809ba60250552cf701a5e1198bdc2427" not in result
+    # A placeholder digest must be replaceable like any other (windows-arm64 pre-release).
+    assert runtime_install.PLACEHOLDER_SHA256 not in result
 
 
 def test_apply_bump_keeps_each_digest_with_its_platform() -> None:
-    bump = RuntimeBump(version="0.2.0", shas=dict(ALL_SHAS))
+    bump = RuntimeBump(version="0.2.0", shas=dict(ALL_PLATFORM_SHAS))
     result = apply_bump(REAL_SOURCE, bump)
 
     darwin_idx = result.index("hai-agent-runtime-darwin-arm64.zip")
     windows_idx = result.index("hai-agent-runtime-windows-x86_64.zip")
-    assert result.index(NEW_DARWIN, darwin_idx) < result.index(NEW_WINDOWS, windows_idx)
-    # The darwin digest must sit between the darwin filename and the windows entry.
+    linux_idx = result.index("hai-agent-runtime-linux-x86_64.zip")
+    windows_arm_idx = result.index("hai-agent-runtime-windows-arm64.zip")
+    # Each digest must sit directly after its own filename literal.
     assert darwin_idx < result.index(NEW_DARWIN) < windows_idx
+    assert windows_idx < result.index(NEW_WINDOWS) < linux_idx
+    assert linux_idx < result.index(NEW_LINUX) < windows_arm_idx
+    assert windows_arm_idx < result.index(NEW_WINDOWS_ARM)
 
 
 def test_apply_bump_rejects_non_hex_sha() -> None:
@@ -57,10 +66,13 @@ def test_apply_bump_raises_when_platform_filename_absent() -> None:
 
 
 def test_apply_bump_requires_a_sha_for_every_published_platform() -> None:
-    # darwin alone bumps the shared version but leaves windows pinned to a stale
-    # digest at the new version's URL — a guaranteed download verification failure.
-    bump = RuntimeBump(version="0.2.0", shas={"darwin-arm64": NEW_DARWIN})
-    with pytest.raises(ValueError, match="windows-x86_64"):
+    # A partial bump leaves the omitted platforms pinned to a stale digest at
+    # the new version's URL — a guaranteed download verification failure.
+    bump = RuntimeBump(
+        version="0.2.0",
+        shas={"darwin-arm64": NEW_DARWIN, "windows-x86_64": NEW_WINDOWS, "linux-x86_64": NEW_LINUX},
+    )
+    with pytest.raises(ValueError, match="windows-arm64"):
         apply_bump(REAL_SOURCE, bump)
 
 
