@@ -4,6 +4,11 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.5] - 2026-07-28
+
+- Added native Windows ARM64 installation with the managed `hai-agent-runtime` 0.1.10 binary.
+- Added a release-built Windows ARM64 `cryptography` wheel, native installer smoke coverage, and desktop readiness for full end-to-end evaluation.
+
 ## [0.0.4] - 2026-07-22
 
 - Fixed the Windows installer incorrectly rejecting x86_64 systems when PSReadLine shadows .NET's architecture information type.
@@ -35,3 +40,4 @@ Initial public release.
 [0.0.2]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.2
 [0.0.3]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.3
 [0.0.4]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.4
+[0.0.5]: https://github.com/hcompai/holo-desktop-cli/releases/tag/v0.0.5
