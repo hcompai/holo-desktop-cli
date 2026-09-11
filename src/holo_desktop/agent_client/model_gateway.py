@@ -7,7 +7,7 @@ from typing import Literal
 
 import httpx
 
-from holo_desktop import USER_AGENT
+from holo_desktop import CLIENT_HEADERS
 from holo_desktop.settings import GatewaySettings
 
 # This base URL is itself the OpenAI `/v1/models` route, so a GET with the key doubles as an entitlement check.
@@ -27,7 +27,7 @@ def probe_model_access(gateway_url: str, api_key: str, timeout_s: float) -> Gate
     try:
         response = httpx.get(
             gateway_url,
-            headers={"Authorization": f"Bearer {api_key}", "User-Agent": USER_AGENT},
+            headers={**CLIENT_HEADERS, "Authorization": f"Bearer {api_key}"},
             timeout=timeout_s,
         )
     except httpx.HTTPError:
