@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
+from holo_desktop import USER_AGENT
 from holo_desktop.agent_client.model_gateway import (
     PRODUCTION_GATEWAY_URL,
     probe_model_access,
@@ -21,9 +22,11 @@ _TIMEOUT_S = 5.0
 
 
 @contextmanager
-def _gateway_server(status: int) -> Iterator[str]:
+def _gateway_server(status: int, captured: dict[str, str] | None = None) -> Iterator[str]:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
+            if captured is not None:
+                captured["user-agent"] = self.headers.get("User-Agent", "")
             body = b'{"data": []}'
             self.send_response(status)
             self.send_header("Content-Length", str(len(body)))
@@ -46,6 +49,13 @@ def _gateway_server(status: int) -> Iterator[str]:
 def test_ok_is_entitled() -> None:
     with _gateway_server(200) as url:
         assert probe_model_access(url, "good-key", _TIMEOUT_S) == "entitled"
+
+
+def test_probe_identifies_cli_as_user_agent() -> None:
+    captured: dict[str, str] = {}
+    with _gateway_server(200, captured) as url:
+        probe_model_access(url, "good-key", _TIMEOUT_S)
+    assert captured["user-agent"] == USER_AGENT
 
 
 def test_unauthorized_is_unauthorized() -> None:

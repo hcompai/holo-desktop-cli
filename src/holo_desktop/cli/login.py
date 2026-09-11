@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import httpx
 import tyro
 
+from holo_desktop import USER_AGENT
 from holo_desktop.agent_client.model_gateway import (
     GATEWAY_PROBE_TIMEOUT_S,
     probe_model_access,
@@ -225,7 +226,7 @@ def login(
         state = secrets.token_urlsafe(32)
         code, redirect_uri = _await_code(challenge, state, err)
 
-        with httpx.Client(timeout=20.0) as client:
+        with httpx.Client(timeout=20.0, headers={"User-Agent": USER_AGENT}) as client:
             tok = client.post(
                 f"{PORTAL_BASE}/api/auth/desktop/exchange",
                 json={"code": code, "code_verifier": verifier, "redirect_uri": redirect_uri},

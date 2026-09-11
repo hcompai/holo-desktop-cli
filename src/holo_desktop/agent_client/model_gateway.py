@@ -7,6 +7,7 @@ from typing import Literal
 
 import httpx
 
+from holo_desktop import USER_AGENT
 from holo_desktop.settings import GatewaySettings
 
 # This base URL is itself the OpenAI `/v1/models` route, so a GET with the key doubles as an entitlement check.
@@ -24,7 +25,11 @@ def resolve_gateway_url(environ: Mapping[str, str]) -> str:
 def probe_model_access(gateway_url: str, api_key: str, timeout_s: float) -> GatewayAccess:
     """GET the gateway model-list with `api_key`; classify entitled / unauthorized / unverifiable."""
     try:
-        response = httpx.get(gateway_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=timeout_s)
+        response = httpx.get(
+            gateway_url,
+            headers={"Authorization": f"Bearer {api_key}", "User-Agent": USER_AGENT},
+            timeout=timeout_s,
+        )
     except httpx.HTTPError:
         return "unverifiable"
     if response.status_code in (httpx.codes.UNAUTHORIZED, httpx.codes.FORBIDDEN):

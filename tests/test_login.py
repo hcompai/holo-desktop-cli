@@ -17,6 +17,7 @@ import httpx
 import pytest
 from rich.console import Console
 
+from holo_desktop import USER_AGENT
 from holo_desktop.cli import bootstrap
 from holo_desktop.cli import profile as profile_mod
 from holo_desktop.cli.profile import Profile
@@ -85,6 +86,7 @@ def _portal_transport() -> httpx.MockTransport:
     """A portal that signs in, lets the prior key be revoked, and mints `fresh-key`."""
 
     def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["user-agent"] == USER_AGENT
         path = request.url.path
         if request.method == "POST" and path.endswith("/api/auth/desktop/exchange"):
             return httpx.Response(200, json={"access_token": "jwt"})
