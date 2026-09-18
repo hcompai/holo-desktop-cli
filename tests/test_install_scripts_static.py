@@ -144,6 +144,8 @@ if ($platform -ne $expected) {
 
 
 def test_holo_help_does_not_expose_installer_bootstrap() -> None:
-    result = subprocess.run(["holo", "--help"], check=True, capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-m", "holo_desktop", "--help"], check=True, capture_output=True, text=True
+    )
     assert "{run,stop,guard,serve,agent-api,mcp,acp,install,login,whoami,doctor}" in result.stdout
     assert "installer_bootstrap" not in result.stdout
