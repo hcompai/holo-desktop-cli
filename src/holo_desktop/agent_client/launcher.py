@@ -251,6 +251,28 @@ async def probe_health(base_url: str) -> HealthProbe | None:
     return HealthProbe(version=version if isinstance(version, str) else None)
 
 
+def model_endpoint_health_url(base_url: str) -> str:
+    """``<base>/health`` with a trailing ``/v1`` dropped, the probe the runtime's vLLM provider makes."""
+    return f"{base_url.rstrip('/').removesuffix('/v1').rstrip('/')}/health"
+
+
+async def model_endpoint_problem(base_url: str) -> str | None:
+    """One line describing why ``base_url`` does not look like a live OpenAI-compatible server; None when it does.
+
+    The runtime retries the same probe with backoff for minutes before failing, so a typo in the URL is
+    otherwise invisible until then.
+    """
+    url = model_endpoint_health_url(base_url)
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(url)
+    except httpx.HTTPError as exc:
+        return f"GET {url} failed: {exc.__class__.__name__}"
+    if response.status_code == 200:
+        return None
+    return f"GET {url} returned {response.status_code}"
+
+
 def _check_runtime_version(version: str | None) -> None:
     """Warn (not fail) on a client/runtime version skew; PATH/override dev binaries stay usable."""
     if version is not None and version != runtime_install.PINNED_RUNTIME_VERSION:
