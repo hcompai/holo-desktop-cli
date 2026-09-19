@@ -8,7 +8,6 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Fixed `holo run` requiring `HAI_API_KEY` when a runtime base URL is configured through the environment.
 - Pinned `mcp<2` so fresh installs keep a working `holo mcp`.
-- Added a preflight warning in `holo run` when the configured model endpoint does not answer `/health`.
 
 ## [0.0.5] - 2026-07-28
 

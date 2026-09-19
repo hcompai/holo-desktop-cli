@@ -22,7 +22,6 @@ from holo_desktop.agent_client.launcher import (
     AGENT_API_DEFAULT_PORT,
     PORT_ENV,
     log_tail_suggests_permissions,
-    model_endpoint_problem,
     port_from_env,
     text_suggests_permissions,
 )
@@ -124,23 +123,6 @@ def run(
                 padding=(0, 2),
             )
         )
-
-    effective_base_url = base_url or settings.runtime.base_url
-    if effective_base_url and not fake and not quiet:
-        problem = asyncio.run(model_endpoint_problem(effective_base_url))
-        if problem:
-            err.print(
-                Panel(
-                    f"{problem}. The runtime keeps retrying this endpoint for several minutes before "
-                    "giving up; check the URL (a vLLM server is usually http://host:8000/v1) or wait "
-                    "for the server to finish loading.",
-                    title="[bold]model endpoint not ready[/bold]",
-                    title_align="left",
-                    border_style="yellow",
-                    expand=False,
-                    padding=(0, 2),
-                )
-            )
 
     def attempt() -> tuple[str | None, str | None, str | None, bool]:
         """One full session; the trailing bool reports whether this run spawned the runtime."""

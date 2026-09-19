@@ -233,17 +233,3 @@ def test_spawn_config_from_env_ignores_whitespace_base_url(monkeypatch: pytest.M
     config = launcher.spawn_config_from_env(settings=launcher.load_holo_settings())
 
     assert config.base_url is None
-
-
-def test_model_endpoint_problem_accepts_vllm_style_base_url() -> None:
-    with _fake_agent_server() as port:
-        assert asyncio.run(launcher.model_endpoint_problem(f"http://127.0.0.1:{port}/v1")) is None
-        problem = asyncio.run(launcher.model_endpoint_problem(f"http://127.0.0.1:{port}/v1/typo"))
-    assert problem == f"GET http://127.0.0.1:{port}/v1/typo/health returned 404"
-
-
-def test_model_endpoint_problem_reports_unreachable_server() -> None:
-    with _fake_agent_server() as port:
-        pass
-    problem = asyncio.run(launcher.model_endpoint_problem(f"http://127.0.0.1:{port}/v1"))
-    assert problem is not None and problem.startswith("GET ") and "failed" in problem
