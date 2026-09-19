@@ -31,7 +31,7 @@ dependencies = [
     "a2a-sdk[http-server]>=1.0.3",
     "agent-client-protocol>=0.10",
     "httpx>=0.28.1",
-    "mcp>=1.10",
+    "mcp>=1.10,<2",
     "pydantic>=2.11.4",
     "pydantic-settings>=2.6",
     # Global double-Esc kill switch (holo run embedded listener + holo guard).

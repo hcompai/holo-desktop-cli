@@ -29,12 +29,12 @@ def _free_port() -> int:
 
 
 def _holo_executable() -> str:
-    found = shutil.which("holo")
-    if found:
-        return found
     candidate = Path(sys.executable).with_name("holo")
     if candidate.exists():
         return str(candidate)
+    found = shutil.which("holo")
+    if found:
+        return found
     raise AssertionError("could not locate the 'holo' console script")
 
 
@@ -59,7 +59,7 @@ class _FakeOpenAIHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         type(self).requests_seen.append(f"GET {self.path}")
-        if self.path == "/v1/health":
+        if self.path == "/health":
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"ok")
@@ -157,4 +157,4 @@ def test_base_url_reaches_openai_compatible_endpoint(tmp_path: Path) -> None:
     combined_output = f"{completed.stdout}\n{completed.stderr}"
     assert "ConfigCompositionException" not in combined_output
     assert "Could not override 'llm.chat_provider.base_url'" not in combined_output
-    assert "GET /v1/health" in _FakeOpenAIHandler.requests_seen
+    assert "GET /health" in _FakeOpenAIHandler.requests_seen

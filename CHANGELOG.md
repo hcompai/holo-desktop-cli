@@ -4,6 +4,11 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+- Fixed `holo run` requiring `HAI_API_KEY` when a runtime base URL is configured through the environment.
+- Pinned `mcp<2` so fresh installs keep a working `holo mcp`.
+
 ## [0.0.5] - 2026-07-28
 
 - Added native Windows ARM64 installation with the managed `hai-agent-runtime` 0.1.10 binary.
