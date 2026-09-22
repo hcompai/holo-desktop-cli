@@ -25,8 +25,8 @@ from holo_desktop.agent_client.session_runner import (
 from holo_desktop.cli.bootstrap import bootstrap_stdio
 
 INSTRUCTIONS = (
-    "Sub-agent that binds to one OS window per task and drives it via H Company's Holo3 "
-    "vision-language model. Call `holo_desktop` for goals that require operating a native UI "
+    "Sub-agent that drives the user's desktop via H Company's Holo3 vision-language model, "
+    "using the real cursor and keyboard in the foreground. Call `holo_desktop` for goals that require operating a native UI "
     "the caller cannot reach: opening apps (Slack, Mail, Calendar, Authy, Obsidian), filling "
     "forms, controlling the user's logged-in Chrome session, toggling system settings. Do not "
     "use it for tasks you can already do (file edits, web fetches, terminal commands). Holo is "
