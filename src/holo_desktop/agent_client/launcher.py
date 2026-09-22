@@ -96,7 +96,7 @@ def discover_runtime_pids(port: int | None) -> list[int]:
 def process_is_runtime(pid: int) -> bool:
     """True when ``pid`` is alive and its command line names the runtime binary."""
     if os.name == "posix":
-        cmd = ["ps", "-o", "command=", "-p", str(pid)]
+        cmd = ["ps", "-ww", "-o", "command=", "-p", str(pid)]
     else:
         cmd = ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"]
     try:
