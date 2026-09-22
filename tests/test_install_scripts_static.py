@@ -22,7 +22,8 @@ def test_manifest_supports_only_v1_platforms_with_real_hashes() -> None:
         "windows-arm64",
         "linux-x86_64",
     }
-    assert manifest["holo_version"] == "0.0.5"
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert manifest["holo_version"] == pyproject["project"]["version"]
     assert manifest["python_version"] == "3.12"
     for entry in manifest["supported_platforms"].values():
         assert re.fullmatch(r"[0-9a-f]{64}", entry["uv_sha256"])
