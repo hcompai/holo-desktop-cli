@@ -32,9 +32,10 @@ _COMPLETED_CHANGES = {
 
 
 class _AgentApiHandler(BaseHTTPRequestHandler):
-    """Minimal agent-API: healthy, one session, immediately-completed trajectory."""
+    """Minimal agent-API: healthy, one session, immediately-terminal trajectory."""
 
     protocol_version = "HTTP/1.1"
+    changes: dict[str, object] = _COMPLETED_CHANGES
 
     def _json(self, payload: dict[str, object]) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -53,7 +54,7 @@ class _AgentApiHandler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._empty(200)
         elif "/changes" in self.path:
-            self._json(_COMPLETED_CHANGES)
+            self._json(self.changes)
         else:
             self._empty(404)
 
@@ -93,3 +94,29 @@ def test_run_attaches_to_port_from_env(monkeypatch: pytest.MonkeyPatch, capsys: 
         run(task="how many unread emails?", quiet=True)
 
     assert FAKE_ANSWER in capsys.readouterr().out
+
+
+@pytest.mark.timeout(60)
+def test_run_points_at_login_when_the_gateway_rejects_the_key(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
+    monkeypatch.setenv("HAI_API_KEY", "stale-key")
+    monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, "-c", "raise SystemExit(2)"])
+    monkeypatch.setattr(
+        _AgentApiHandler,
+        "changes",
+        {
+            "status": "failed",
+            "error": "AuthenticationFailedError: Error occurred during vLLM call: Unauthorized",
+            "new_events": [],
+            "answer": None,
+        },
+    )
+
+    with _fake_agent_server() as port:
+        monkeypatch.setenv(PORT_ENV, str(port))
+        with pytest.raises(SystemExit, match="1"):
+            run(task="how many unread emails?", quiet=True)
+
+    assert "holo login --force" in capsys.readouterr().err

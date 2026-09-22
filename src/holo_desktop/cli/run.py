@@ -23,6 +23,7 @@ from holo_desktop.agent_client.launcher import (
     PORT_ENV,
     log_tail_suggests_permissions,
     port_from_env,
+    text_suggests_bad_api_key,
     text_suggests_permissions,
 )
 from holo_desktop.settings import HoloSettings
@@ -187,6 +188,9 @@ def run(
     if status is None:
         die("agent error", error or "session ended without terminal status")
     if status == "failed":
+        hosted = not (base_url or settings.runtime.base_url)
+        if hosted and error and text_suggests_bad_api_key(error):
+            die("API key rejected", f"{error}\nRun `holo login --force` to issue a fresh key.")
         die("agent error", error or "unknown failure")
     if status in ("interrupted", "timed_out"):
         die(status, error or f"session {status}")

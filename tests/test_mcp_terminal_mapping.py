@@ -115,3 +115,10 @@ def test_lifespan_shutdown_cancels_active_agent_api_sessions() -> None:
     assert client.cancelled == [SESSION_ID]
     assert active.session_id is None
     assert state.active_session is None
+
+
+def test_mcp_server_reports_the_cli_version() -> None:
+    from holo_desktop import __version__
+    from holo_desktop.cli.mcp import mcp_app
+
+    assert mcp_app._mcp_server.create_initialization_options().server_version == __version__

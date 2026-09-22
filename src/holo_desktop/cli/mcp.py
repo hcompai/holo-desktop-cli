@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from agp_types import TrajectoryEvent, TrajectoryStatus
 from mcp.server.fastmcp import Context, FastMCP
 
+from holo_desktop import __version__
 from holo_desktop.agent_client.client import AgentApiClient
 from holo_desktop.agent_client.events import format_event
 from holo_desktop.agent_client.launcher import AgentDaemon, ensure_running_from_env
@@ -56,6 +57,7 @@ async def lifespan(_: FastMCP) -> AsyncIterator[Lifespan]:
 
 
 mcp_app = FastMCP("holo-desktop", instructions=INSTRUCTIONS, lifespan=lifespan)
+mcp_app._mcp_server.version = __version__
 
 
 @mcp_app.tool()
