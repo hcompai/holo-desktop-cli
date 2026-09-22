@@ -34,6 +34,8 @@ _COMPLETED_CHANGES = {
 class _AgentApiHandler(BaseHTTPRequestHandler):
     """Minimal agent-API: healthy, one session, immediately-completed trajectory."""
 
+    protocol_version = "HTTP/1.1"
+
     def _json(self, payload: dict[str, object]) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(200)
@@ -42,22 +44,25 @@ class _AgentApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _empty(self, status: int) -> None:
+        self.send_response(status)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self) -> None:
         if self.path == "/health":
-            self.send_response(200)
-            self.end_headers()
+            self._empty(200)
         elif "/changes" in self.path:
             self._json(_COMPLETED_CHANGES)
         else:
-            self.send_response(404)
-            self.end_headers()
+            self._empty(404)
 
     def do_POST(self) -> None:
+        self.rfile.read(int(self.headers.get("Content-Length", "0") or "0"))
         if self.path.endswith("/sessions"):
             self._json({"id": "fake-session"})
         else:
-            self.send_response(404)
-            self.end_headers()
+            self._empty(404)
 
     def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
         return
