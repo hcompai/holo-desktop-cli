@@ -8,6 +8,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 - Fixed `holo run` requiring `HAI_API_KEY` when a runtime base URL is configured through the environment.
 - Pinned `mcp<2` so fresh installs keep a working `holo mcp`.
+- Pinned `hai-agent-runtime` 0.1.11: self-hosted endpoints work without `HAI_API_KEY`, a wrong base URL fails immediately, and desktop actions wait 1 s before the next one.
 
 ## [0.0.5] - 2026-07-28
 
