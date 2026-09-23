@@ -6,13 +6,16 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ManifestOutput,
 
-    [string]$WheelBaseUrl = "https://install.hcompany.ai/wheels/windows-arm64"
+    [string]$WheelBaseUrl = "https://install.hcompany.ai/wheels/windows-arm64",
+
+    [string]$ManifestSource = ""
 )
 
 $ErrorActionPreference = "Stop"
 
-$RepoRoot = Split-Path $PSScriptRoot -Parent
-$ManifestSource = Join-Path $RepoRoot "install\manifest.json"
+if (-not $ManifestSource) {
+    $ManifestSource = Join-Path (Split-Path $PSScriptRoot -Parent) "install\manifest.json"
+}
 $Manifest = Get-Content -Raw $ManifestSource | ConvertFrom-Json
 $WindowsArm64 = $Manifest.supported_platforms."windows-arm64"
 $Dependencies = @($WindowsArm64.dependency_wheels)
