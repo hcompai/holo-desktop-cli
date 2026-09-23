@@ -25,7 +25,7 @@ from holo_desktop.settings import DOWNLOAD_SHA256_ENV, DOWNLOAD_URL_ENV, Runtime
 
 logger = logging.getLogger(__name__)
 
-PINNED_RUNTIME_VERSION = "0.1.11"
+PINNED_RUNTIME_VERSION = "0.1.12"
 RUNTIME_DIR = Path.home() / ".holo" / "runtime"
 # Artifacts live under an immutable, version-scoped prefix, so a CDN edge can never serve stale bytes.
 RUNTIME_CDN_BASE = "https://assets.hcompanyprod.fr/hai-agent-runtime"
@@ -63,20 +63,20 @@ def _artifact(filename: str, sha256: str) -> RuntimeArtifact:
 MANIFEST: dict[str, RuntimeArtifact] = {
     "darwin-arm64": _artifact(
         "hai-agent-runtime-darwin-arm64.zip",
-        "abcc4b5d075717bcea2604f7c65c85b599d61c7f357a027c5aa1d7f1a882bedf",
+        "a442d7fd3430e54be3b2e8c65f4d2f85b5a22d7b534aa3e72978e489a5212cfa",
     ),
     "windows-x86_64": _artifact(
         "hai-agent-runtime-windows-x86_64.zip",
-        "36b4ec3dcf5c98cefea6f8128b1fdcf233675b19307605bcdbf64fdf3ff259b8",
+        "69b02a3b6773707c6d2ac83c710493ef63a6d81e66707bb493d0d60845d188d3",
     ),
     "linux-x86_64": _artifact(
         "hai-agent-runtime-linux-x86_64.zip",
-        "17b6e9e2a98c334be5cc8f04657ed250869162c93897f9b11f917e3199b2e345",
+        "92deea3c44a7105c1d4f3c18ac9df371361184c2038954d8e5d8059052a5afe6",
     ),
     # Placeholder digest (bump_runtime.py needs a hex literal anchor); the release pipeline fills it in.
     "windows-arm64": _artifact(
         "hai-agent-runtime-windows-arm64.zip",
-        "ad4638426caeb256ad490719199a9b966ce53bb8830fc3e75cc7c903b3b94b45",
+        "2989e1b3eb85d8e2070faa27d9050a859ff0feae3b61040379f9d890aca27a34",
     ),
 }
 
