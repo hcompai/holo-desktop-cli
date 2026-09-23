@@ -70,7 +70,19 @@ curl -fsSL https://install.holo.ai/install.ps1 | head
 curl -fsSL https://install.holo.ai/install/manifest.json | python -m json.tool
 ```
 
+The Windows ARM64 `cryptography` wheel lives under an immutable, version-scoped CDN key (`wheels/windows-arm64/cryptography/<version>/…`). The release job downloads the already-published wheel when one exists and only builds from source when the key is new, so the manifest always points at the bytes the CDN serves.
+
 Rollback is a new patch release that restores the previous manifest and installer scripts. If a same-version emergency rollback is required, manually upload the previous three assets to the same S3 keys and verify the CDN endpoints after the 300-second cache window.
+
+## Republishing installer assets
+
+If `publish-installer-cdn` fails after PyPI and the GitHub Release already exist, rerun only the CDN leg for that tag:
+
+```bash
+gh workflow run publish.yml -f target=installer-cdn -f tag=v0.0.6
+```
+
+This skips PyPI and the GitHub Release, rebuilds the manifest from the tag, uploads the installer assets, and runs the CDN smoke tests.
 
 ## Dry-run on TestPyPI
 
