@@ -84,6 +84,8 @@ gh workflow run publish.yml -f target=installer-cdn -f tag=v0.0.6
 
 This skips PyPI and the GitHub Release. It runs the publishing scripts from the branch you dispatch from (normally `main`), takes `install/manifest.json` and the installer scripts from the tag, uploads the installer assets, and runs the CDN smoke tests.
 
+The OIDC trust policy of `HoloDesktopCliInstallerReleaseRole` decides which refs may upload: dispatching from a ref it does not trust fails at `Configure AWS credentials` with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. It must trust `repo:hcompai/holo-desktop-cli:ref:refs/heads/main` for this rerun path to work.
+
 ## Dry-run on TestPyPI
 
 `workflow_dispatch` → choose `testpypi` → runs the build + uploads to https://test.pypi.org/project/holo-desktop-cli/ without touching prod. Useful for testing workflow changes; not gated on runtime artifacts.
