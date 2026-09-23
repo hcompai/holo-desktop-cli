@@ -82,7 +82,7 @@ If `publish-installer-cdn` fails after PyPI and the GitHub Release already exist
 gh workflow run publish.yml -f target=installer-cdn -f tag=v0.0.6
 ```
 
-This skips PyPI and the GitHub Release, rebuilds the manifest from the tag, uploads the installer assets, and runs the CDN smoke tests.
+This skips PyPI and the GitHub Release. It runs the publishing scripts from the branch you dispatch from (normally `main`), takes `install/manifest.json` and the installer scripts from the tag, uploads the installer assets, and runs the CDN smoke tests.
 
 ## Dry-run on TestPyPI
 

@@ -60,8 +60,11 @@ def test_release_builds_and_materializes_the_windows_arm64_dependency() -> None:
 
     assert wheel["if"] == "startsWith(github.ref, 'refs/tags/v') || inputs.target == 'installer-cdn'"
     assert wheel["runs-on"] == "windows-11-arm"
-    checkout = next(step for step in wheel["steps"] if step.get("uses") == "actions/checkout@v4")
-    assert checkout["with"]["ref"] == "${{ inputs.tag || github.ref }}"
+    checkouts = [step for step in wheel["steps"] if step.get("uses") == "actions/checkout@v4"]
+    assert "with" not in checkouts[0]
+    assert checkouts[1]["with"] == {"ref": "${{ inputs.tag || github.ref }}", "path": "release-source"}
+    build = next(step for step in wheel["steps"] if step.get("id") == "build")
+    assert '-ManifestSource "$env:GITHUB_WORKSPACE\\release-source\\install\\manifest.json"' in build["run"]
     assert workflow[True]["workflow_dispatch"]["inputs"]["target"]["options"] == ["testpypi", "installer-cdn"]
     assert workflow["jobs"]["quality"]["if"] == "inputs.target != 'installer-cdn'"
     rendered = yaml.safe_dump(wheel, sort_keys=True)

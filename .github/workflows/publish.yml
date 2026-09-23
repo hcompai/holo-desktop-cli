@@ -53,8 +53,11 @@ jobs:
           echo "installer-cdn needs tag=v<version>, got '${{ inputs.tag }}'" >&2
           exit 1
       - uses: actions/checkout@v4
+      - name: Check out the release being published
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
+          path: release-source
       - uses: astral-sh/setup-uv@v3
         with:
           version: "0.9.18"
@@ -65,7 +68,8 @@ jobs:
         run: |
           .\scripts\build_windows_arm64_dependency_wheel.ps1 `
             -WheelDirectory "$env:RUNNER_TEMP\windows-arm64-dependency\wheels" `
-            -ManifestOutput "$env:RUNNER_TEMP\windows-arm64-dependency\install\manifest.json"
+            -ManifestOutput "$env:RUNNER_TEMP\windows-arm64-dependency\install\manifest.json" `
+            -ManifestSource "$env:GITHUB_WORKSPACE\release-source\install\manifest.json"
       - name: Refuse an unpublished or mismatched dependency
         shell: pwsh
         run: |
