@@ -6,16 +6,21 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Manual dispatch publishes to TestPyPI only; prod PyPI is reserved for v* tags."
+        description: "testpypi publishes a build to TestPyPI; installer-cdn republishes the installer assets of an existing v* tag. Prod PyPI is reserved for v* tag pushes."
         type: choice
-        options: [testpypi]
+        options: [testpypi, installer-cdn]
         default: testpypi
+      tag:
+        description: "Existing release tag (v*) to republish installer assets for; installer-cdn only."
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   quality:
+    if: inputs.target != 'installer-cdn'
     runs-on: ubuntu-latest
     env:
       # Backstop for sub-calls that print before main() reconfigures stdout (cp1252 otherwise).
@@ -38,10 +43,21 @@ jobs:
           uv run python -c "import holo_desktop.cli; from holo_desktop import __version__; from holo_desktop.agent_client import AgentApiClient, SpawnConfig, ensure_running; print(__version__)"
 
   windows-arm64-dependency:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.target == 'installer-cdn'
     runs-on: windows-11-arm
     steps:
+      - name: Require an existing release tag for installer-cdn
+        if: inputs.target == 'installer-cdn' && !startsWith(inputs.tag, 'v')
+        shell: bash
+        run: |
+          echo "installer-cdn needs tag=v<version>, got '${{ inputs.tag }}'" >&2
+          exit 1
       - uses: actions/checkout@v4
+      - name: Check out the release being published
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          path: release-source
       - uses: astral-sh/setup-uv@v3
         with:
           version: "0.9.18"
@@ -52,7 +68,8 @@ jobs:
         run: |
           .\scripts\build_windows_arm64_dependency_wheel.ps1 `
             -WheelDirectory "$env:RUNNER_TEMP\windows-arm64-dependency\wheels" `
-            -ManifestOutput "$env:RUNNER_TEMP\windows-arm64-dependency\install\manifest.json"
+            -ManifestOutput "$env:RUNNER_TEMP\windows-arm64-dependency\install\manifest.json" `
+            -ManifestSource "$env:GITHUB_WORKSPACE\release-source\install\manifest.json"
       - name: Refuse an unpublished or mismatched dependency
         shell: pwsh
         run: |
@@ -173,8 +190,16 @@ jobs:
           draft: false
 
   publish-installer-cdn:
-    needs: release
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release, windows-arm64-dependency]
+    if: >-
+      ${{
+        !cancelled()
+        && needs.windows-arm64-dependency.result == 'success'
+        && (
+          (startsWith(github.ref, 'refs/tags/v') && needs.release.result == 'success')
+          || inputs.target == 'installer-cdn'
+        )
+      }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -184,6 +209,8 @@ jobs:
       INSTALLER_BASE_URL: https://install.hcompany.ai
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           name: windows-arm64-dependency
@@ -290,7 +317,7 @@ jobs:
 
   smoke-windows-arm64-installer-cdn:
     needs: publish-installer-cdn
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.target == 'installer-cdn'
     runs-on: windows-11-arm
     env:
       INSTALLER_BASE_URL: https://install.hcompany.ai
