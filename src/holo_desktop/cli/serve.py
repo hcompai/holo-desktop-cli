@@ -94,9 +94,8 @@ def build_agent_card(url: str) -> AgentCard:
     return AgentCard(
         name="HoloDesktop CLI",
         description=(
-            "Binds to one OS window per task and drives it in the background via H Company's "
-            "Holo3 VLM. Synthesized clicks and keystrokes go to the bound window only, so the "
-            "user keeps their cursor and can use other apps in parallel."
+            "Drives the user's desktop in the foreground via H Company's Holo3 VLM: it takes over the "
+            "real cursor and keyboard for the duration of a task, so the user should keep hands off."
         ),
         version=__version__,
         capabilities=AgentCapabilities(streaming=True, push_notifications=False),

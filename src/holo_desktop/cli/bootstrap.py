@@ -45,7 +45,7 @@ def save_hai_key(key: str) -> None:
 
 def require_api_key(*, explicit_base_url: str | None = None, settings: HoloSettings) -> None:
     """Ensure a HAI_API_KEY is set for Models API calls; auto-launch `holo login` on interactive TTYs."""
-    if explicit_base_url or settings.auth.api_key:
+    if explicit_base_url or settings.runtime.base_url or settings.auth.api_key:
         return
 
     from rich.console import Console

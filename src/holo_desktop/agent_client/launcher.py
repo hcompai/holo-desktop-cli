@@ -74,22 +74,36 @@ def read_pid_file(port: int) -> int | None:
 
 
 def discover_runtime_pids(port: int | None) -> list[int]:
-    """Pids of spawned runtimes from pid files: one ``port``, or every spawned runtime when None.
+    """Pids of live spawned runtimes from pid files: one ``port``, or every spawned runtime when None.
 
-    Gotcha: a runtime that exits uncleanly (crash/SIGKILL) leaves its pid file behind, so a later
-    ``holo stop --force`` can SIGKILL a recycled pid. There is no proof-of-identity check yet; the
-    robust fix (match the process start time) is tracked as follow-up.
+    A runtime that exits uncleanly leaves its pid file behind and the OS may hand the pid to an
+    unrelated process, so each pid is checked against its command line before it is returned.
     """
     if port is not None:
         pid = read_pid_file(port)
-        return [pid] if pid is not None else []
+        return [pid] if pid is not None and process_is_runtime(pid) else []
     pids: list[int] = []
     for path in sorted(TOKEN_DIR.glob("agent-pid-*")):
         try:
-            pids.append(int(path.read_text(encoding="utf-8").strip()))
+            pid = int(path.read_text(encoding="utf-8").strip())
         except (OSError, ValueError):
             continue
+        if process_is_runtime(pid):
+            pids.append(pid)
     return pids
+
+
+def process_is_runtime(pid: int) -> bool:
+    """True when ``pid`` is alive and its command line names the runtime binary."""
+    if os.name == "posix":
+        cmd = ["ps", "-ww", "-o", "command=", "-p", str(pid)]
+    else:
+        cmd = ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=False).stdout
+    except OSError:
+        return False
+    return "hai-agent-runtime" in out or "hai_agent_runtime" in out
 
 
 def _killpg_posix(pid: int, sig: int) -> bool:
@@ -328,6 +342,15 @@ def text_suggests_permissions(text: str) -> bool:
     """True when ``text`` (stderr tail, session error, ...) looks like a macOS permission failure."""
     lowered = text.lower()
     return any(hint in lowered for hint in PERMISSION_ERROR_HINTS)
+
+
+API_KEY_ERROR_HINTS = ("unauthorized", "invalid api key", "api key is required", "authenticationfailed")
+
+
+def text_suggests_bad_api_key(text: str) -> bool:
+    """True when a session error looks like the model gateway rejecting the bearer token."""
+    lowered = text.lower()
+    return any(hint in lowered for hint in API_KEY_ERROR_HINTS)
 
 
 def log_tail_suggests_permissions(port: int) -> bool:

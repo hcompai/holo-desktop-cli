@@ -132,8 +132,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          pinned="$(sed -nE 's/^PINNED_RUNTIME_VERSION = "([^"]+)"$/\1/p' src/holo_desktop/agent_client/runtime_install.py)"
+          test -n "$pinned"
           docker run --rm --platform linux/amd64 \
             -v "$GITHUB_WORKSPACE:/work:ro" \
+            -e "PINNED_RUNTIME_VERSION=$pinned" \
             -w /tmp \
             ubuntu:22.04 \
             bash -c '
@@ -145,6 +148,7 @@ jobs:
               printf "holo ALL=(ALL) NOPASSWD:ALL\n" >/etc/sudoers.d/holo
               sudo -u holo env \
                 HOME=/home/holo \
+                PINNED_RUNTIME_VERSION="$PINNED_RUNTIME_VERSION" \
                 HOLO_HOME=/home/holo/.holo-install \
                 HOLO_INSTALL_MANIFEST_URL=file:///work/install/manifest.json \
                 HOLO_INSTALL_PACKAGE=/work \
@@ -154,7 +158,7 @@ jobs:
                   cd /tmp
                   curl -fsSL file:///work/install/install.sh | bash
                   \"\$HOLO_HOME/bin/holo\" --help >/dev/null
-                  test -x \"\$HOME/.holo/runtime/0.1.10/hai-agent-runtime\"
+                  test -x \"\$HOME/.holo/runtime/\$PINNED_RUNTIME_VERSION/hai-agent-runtime\"
                 "
               test -e /usr/include/linux/input.h
             '
