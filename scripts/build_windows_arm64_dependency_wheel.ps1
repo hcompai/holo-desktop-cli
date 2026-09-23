@@ -26,39 +26,64 @@ $DependencyName = [string]$Dependency.name
 $DependencyVersion = [string]$Dependency.version
 $PythonVersion = [string]$Manifest.python_version
 $PythonSelector = "cpython-$PythonVersion-windows-aarch64-none"
-$VcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
-
-if (-not $VcpkgRoot -or -not (Test-Path (Join-Path $VcpkgRoot "vcpkg.exe"))) {
-    throw "VCPKG_INSTALLATION_ROOT does not point to a vcpkg installation"
-}
+$PublishedBaseUrl = if ($WheelBaseUrl -match "^https?://") { $WheelBaseUrl.TrimEnd('/') } else { $null }
 
 New-Item -ItemType Directory -Force -Path $WheelDirectory | Out-Null
 if (Get-ChildItem -Path $WheelDirectory -Filter "*.whl" -ErrorAction SilentlyContinue) {
     throw "wheel output directory must not already contain wheel files: $WheelDirectory"
 }
 
-& (Join-Path $VcpkgRoot "vcpkg.exe") install openssl:arm64-windows-static-md
-if ($LASTEXITCODE -ne 0) {
-    throw "vcpkg failed to install OpenSSL for Windows ARM64"
+function Get-PublishedWheel {
+    if (-not $PublishedBaseUrl) {
+        return $false
+    }
+    $WheelName = "$DependencyName-$DependencyVersion-cp$($PythonVersion.Replace('.', ''))-abi3-win_arm64.whl"
+    $Url = "$PublishedBaseUrl/$DependencyName/$DependencyVersion/$WheelName"
+    $Target = Join-Path $WheelDirectory $WheelName
+    try {
+        Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing
+    } catch {
+        Remove-Item -Path $Target -Force -ErrorAction SilentlyContinue
+        Write-Host "no published wheel at $Url; building from source"
+        return $false
+    }
+    Write-Host "reusing published wheel $Url"
+    return $true
 }
 
-$env:VCPKG_ROOT = $VcpkgRoot
-$env:OPENSSL_DIR = Join-Path $VcpkgRoot "installed\arm64-windows-static-md"
-$env:OPENSSL_STATIC = "1"
+function Build-Wheel {
+    $VcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+    if (-not $VcpkgRoot -or -not (Test-Path (Join-Path $VcpkgRoot "vcpkg.exe"))) {
+        throw "VCPKG_INSTALLATION_ROOT does not point to a vcpkg installation"
+    }
 
-& uv python install $PythonSelector --no-bin --no-registry
-if ($LASTEXITCODE -ne 0) {
-    throw "uv failed to install Python $PythonSelector"
+    & (Join-Path $VcpkgRoot "vcpkg.exe") install openssl:arm64-windows-static-md
+    if ($LASTEXITCODE -ne 0) {
+        throw "vcpkg failed to install OpenSSL for Windows ARM64"
+    }
+
+    $env:VCPKG_ROOT = $VcpkgRoot
+    $env:OPENSSL_DIR = Join-Path $VcpkgRoot "installed\arm64-windows-static-md"
+    $env:OPENSSL_STATIC = "1"
+
+    & uv python install $PythonSelector --no-bin --no-registry
+    if ($LASTEXITCODE -ne 0) {
+        throw "uv failed to install Python $PythonSelector"
+    }
+
+    & uv run --no-project --python $PythonSelector --with pip python -m pip wheel `
+        "$DependencyName==$DependencyVersion" `
+        --no-deps `
+        --no-binary $DependencyName `
+        --no-cache-dir `
+        --wheel-dir $WheelDirectory
+    if ($LASTEXITCODE -ne 0) {
+        throw "failed to build $DependencyName $DependencyVersion for Windows ARM64"
+    }
 }
 
-& uv run --no-project --python $PythonSelector --with pip python -m pip wheel `
-    "$DependencyName==$DependencyVersion" `
-    --no-deps `
-    --no-binary $DependencyName `
-    --no-cache-dir `
-    --wheel-dir $WheelDirectory
-if ($LASTEXITCODE -ne 0) {
-    throw "failed to build $DependencyName $DependencyVersion for Windows ARM64"
+if (-not (Get-PublishedWheel)) {
+    Build-Wheel
 }
 
 $Wheels = @(Get-ChildItem -Path $WheelDirectory -Filter "$DependencyName-*-win_arm64.whl")
