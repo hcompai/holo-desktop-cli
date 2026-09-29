@@ -38,6 +38,7 @@ from a2a.types import (
     TaskStatusUpdateEvent,
 )
 from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents.core.api_error import ApiError
 from pydantic import BaseModel, ConfigDict
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -148,7 +149,12 @@ class HoloExecutor(AgentExecutor):
             ),
             settings=self._settings,
         )
-        self._client = AgentApiClient(self._daemon.base_url, self._daemon.token)
+        self._client = AgentApiClient(
+            self._daemon.base_url,
+            self._daemon.token,
+            runtime=None if getattr(self._daemon, "legacy", False) else getattr(self._daemon, "runtime", None),
+            auto_bridges=not getattr(self._daemon, "legacy", False),
+        )
 
     async def shutdown(self) -> None:
         if self._client is not None:
@@ -251,7 +257,7 @@ class HoloExecutor(AgentExecutor):
                 idle_timeout_s=DEFAULT_INTERACTIVE_IDLE_TIMEOUT_S,
                 on_event=forward,
             )
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ApiError):
             logger.warning("agent-API call failed for task %s", task_id, exc_info=True)
             await event_queue.enqueue_event(
                 status_event(

@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import os
-import secrets
 import shutil
 import signal
 import subprocess
@@ -14,6 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
+from hai_agents.local import state as runtime_state
+from hai_agents.local.process import log_tail, terminate
+from hai_agents.local.runtime import LocalRuntime
 from pydantic import BaseModel
 
 from holo_desktop.agent_client import runtime_install
@@ -22,8 +23,12 @@ from holo_desktop.settings import (
     AGENT_API_DEFAULT_PORT as _AGENT_API_DEFAULT_PORT,
 )
 from holo_desktop.settings import (
-    AUTH_TOKEN_ENV,
-    PORT_ENV,
+    AUTH_TOKEN_ENV as AUTH_TOKEN_ENV,
+)
+from holo_desktop.settings import (
+    PORT_ENV as PORT_ENV,
+)
+from holo_desktop.settings import (
     RUNTIME_BASE_URL_ENV,
     HoloSettings,
     load_holo_settings,
@@ -34,7 +39,6 @@ logger = logging.getLogger(__name__)
 LOOPBACK_HOST = "127.0.0.1"
 MODELS_API_BASE_URL_ENV = "HAI_BASE_URL"
 AGENT_API_DEFAULT_PORT = _AGENT_API_DEFAULT_PORT
-SPAWN_TIMEOUT_S = 45.0
 # Disabled by default: without a Datadog Agent, ddtrace only adds noise and a shutdown flush hang.
 DDTRACE_DEFAULT_OFF: dict[str, str] = {
     "DD_TRACE_ENABLED": "false",
@@ -42,7 +46,6 @@ DDTRACE_DEFAULT_OFF: dict[str, str] = {
 }
 # stderr goes to a file, not a pipe: nobody drains a pipe after spawn, so the buffer would fill and block.
 LOG_DIR = Path.home() / ".holo" / "logs"
-LOG_TAIL_CHARS = 4000
 TOKEN_DIR = Path.home() / ".holo"
 
 
@@ -54,18 +57,21 @@ def apply_hosted_gateway_default(env: dict[str, str]) -> None:
 
 def token_file_path(port: int) -> Path:
     """Where a spawner publishes its generated bearer token for other local clients."""
-    return TOKEN_DIR / f"agent-token-{port}"
+    return runtime_state.token_file_path(port, cache_dir=TOKEN_DIR)
 
 
 def pid_file_path(port: int) -> Path:
     """Where a spawner publishes the runtime pid so ``holo stop --force`` can signal it."""
-    return TOKEN_DIR / f"agent-pid-{port}"
+    return runtime_state.pid_file_path(port, cache_dir=TOKEN_DIR)
 
 
 def read_pid_file(port: int) -> int | None:
     """The spawned runtime's pid for ``port``, or None when no readable pid file exists."""
     try:
-        return int(pid_file_path(port).read_text(encoding="utf-8").strip())
+        path = pid_file_path(port)
+        if not path.exists():
+            path = TOKEN_DIR / f"agent-pid-{port}"
+        return int(path.read_text(encoding="utf-8").strip())
     except (FileNotFoundError, ValueError):
         return None
     except OSError as exc:
@@ -83,12 +89,14 @@ def discover_runtime_pids(port: int | None) -> list[int]:
         pid = read_pid_file(port)
         return [pid] if pid is not None and process_is_runtime(pid) else []
     pids: list[int] = []
-    for path in sorted(TOKEN_DIR.glob("agent-pid-*")):
+    # Emergency stop must still discover a daemon started by the released CLI.
+    paths = [*(TOKEN_DIR / "state").glob("agent-pid-*"), *TOKEN_DIR.glob("agent-pid-*")]
+    for path in sorted(paths):
         try:
             pid = int(path.read_text(encoding="utf-8").strip())
         except (OSError, ValueError):
             continue
-        if process_is_runtime(pid):
+        if pid not in pids and process_is_runtime(pid):
             pids.append(pid)
     return pids
 
@@ -133,7 +141,7 @@ def runtime_log_path(port: int) -> Path:
 
 def runtime_log_tail(port: int) -> str:
     """Last chunk of the runtime's stderr log for `port`; a placeholder when missing/empty."""
-    return _log_tail(runtime_log_path(port))
+    return log_tail(runtime_log_path(port))
 
 
 @dataclass
@@ -149,9 +157,15 @@ class AgentDaemon:
     runtime_version: str | None
     # Set only on the spawner; published so `holo stop --force` can find the runtime from another process.
     pid_file: Path | None = None
+    runtime: LocalRuntime | None = None
+    legacy: bool = False
 
     async def aclose(self) -> None:
         """Stop the daemon if we spawned it; no-op if we attached to an existing one."""
+        if self.runtime is not None:
+            if self.runtime.owned:
+                await asyncio.to_thread(self.runtime.shutdown)
+            return
         if self.proc is not None:
             await _graceful_stop(self.proc)
         if self.token_file is not None:
@@ -265,64 +279,52 @@ async def probe_health(base_url: str) -> HealthProbe | None:
     return HealthProbe(version=version if isinstance(version, str) else None)
 
 
-def _check_runtime_version(version: str | None) -> None:
-    """Warn (not fail) on a client/runtime version skew; PATH/override dev binaries stay usable."""
-    if version is not None and version != runtime_install.PINNED_RUNTIME_VERSION:
-        logger.warning(
-            "hai-agent-runtime version skew: server reports %s, this client pins %s; "
-            "wire-contract drift may cause subtle failures",
-            version,
-            runtime_install.PINNED_RUNTIME_VERSION,
-        )
-
-
 async def ensure_running(config: SpawnConfig, *, settings: HoloSettings) -> AgentDaemon:
-    """Return a reachable :class:`AgentDaemon`, attaching to or spawning the binary."""
+    """Use the SDK's authenticated runtime lifecycle, keeping CLI launch policy."""
     server_url = f"http://{LOOPBACK_HOST}:{config.port}"
-    env_token = settings.runtime.api_token or ""
-
     probe = await probe_health(server_url)
-    if probe is not None:
-        valued = (("--model", config.model), ("--base-url", config.base_url), ("--runs-dir", config.runs_dir))
-        requested = [f"{name} {value}" for name, value in valued if value]
-        requested += [name for name, on in (("--fake", config.fake), ("--fast", config.fast)) if on]
-        if config.require_fresh_for_config and requested:
-            flags = " ".join(requested)
-            raise RuntimeError(
-                f"An agent server is already running at {server_url} and keeps the configuration "
-                f"it was started with, so '{flags}' would be silently ignored. "
-                "Stop that server, or pass a different --port to spawn a fresh one with your flags."
-            )
-        token = env_token or _read_token_file(config.port)
-        if not token:
-            raise RuntimeError(
-                f"An agent server is already running at {server_url} but no credentials were found: "
-                f"{AUTH_TOKEN_ENV} is not set and {token_file_path(config.port)} does not exist, "
-                "so this client cannot authenticate. Export the token or stop that server."
-            )
-        _check_runtime_version(probe.version)
-        return AgentDaemon(
-            base_url=server_url, token=token, proc=None, token_file=None, runtime_version=probe.version, pid_file=None
+    valued = (("--model", config.model), ("--base-url", config.base_url), ("--runs-dir", config.runs_dir))
+    requested = [f"{name} {value}" for name, value in valued if value]
+    requested += [name for name, enabled in (("--fake", config.fake), ("--fast", config.fast)) if enabled]
+    if probe is not None and config.require_fresh_for_config and requested:
+        raise RuntimeError(
+            f"An agent server is already running at {server_url}; explicit launch flags {' '.join(requested)} would be ignored. "
+            "Stop it or choose another --port."
         )
-
-    token = env_token or secrets.token_urlsafe(32)
-    # Publish generated tokens before health so a client racing our /health probe can authenticate;
-    # env tokens never touch disk.
-    token_file = None if env_token else _write_owner_only(token_file_path(config.port), token)
-    try:
-        proc, runtime_version = await _spawn(config=config, token=token, settings=settings)
-    except BaseException:
-        if token_file is not None:
-            _unlink_token_if_ours(token_file, token)
-        raise
-    _check_runtime_version(runtime_version)
+    # Keep the released latency preset until its settings have an equivalent shared profile.
+    recipe = "desktop" if config.fast else "shared"
+    extra = {"HAI_AGENT_RUNTIME_RECIPE": recipe}
+    if config.fast:
+        extra["HAI_AGENT_RUNTIME_FAST"] = "1"
+    if config.fake:
+        extra["HAI_AGENT_RUNTIME_FAKE"] = "1"
+    if config.model:
+        extra["HAI_AGENT_RUNTIME_MODEL"] = config.model
+    if config.base_url:
+        extra["HAI_AGENT_RUNTIME_BASE_URL"] = config.base_url
+    if config.runs_dir:
+        extra["HAI_AGENT_RUNTIME_RUNS_DIR"] = str(config.runs_dir.expanduser())
+    options = dict(
+        port=config.port,
+        cache_dir=TOKEN_DIR,
+        required_recipe=recipe,
+        spawn_env=runtime_child_env(extra, settings=settings),
+        inherit_env=False,
+    )
+    if probe is None:
+        if explicit := os.environ.get("HAI_AGENT_LOCAL_BINARY_PATH"):
+            options["binary_path"] = explicit
+        else:
+            options["command"] = await asyncio.to_thread(resolve_command, settings=settings)
+    runtime = await LocalRuntime.ensure_started_async(**options)
     return AgentDaemon(
-        base_url=server_url,
-        token=token,
-        proc=proc,
-        token_file=token_file,
-        runtime_version=runtime_version,
-        pid_file=_write_pid_file(config.port, proc.pid),
+        base_url=runtime.base_url,
+        token=runtime.api_key,
+        proc=runtime._proc,
+        token_file=None,
+        runtime_version=runtime.version,
+        runtime=runtime,
+        legacy=config.fast or config.fake,
     )
 
 
@@ -363,152 +365,6 @@ def log_tail_suggests_permissions(port: int) -> bool:
     return text_suggests_permissions(data.decode("utf-8", errors="replace"))
 
 
-def _read_token_file(port: int) -> str:
-    try:
-        return token_file_path(port).read_text(encoding="utf-8").strip()
-    except FileNotFoundError:
-        return ""
-    except OSError as exc:
-        logger.warning("could not read token file %s: %s", token_file_path(port), exc)
-        return ""
-
-
-def _write_owner_only(path: Path, content: str) -> Path:
-    """Write `content` to `path` owner-only, refusing a pre-existing symlink at the path.
-
-    For files whose contents drive a privileged action — the bearer token, and the runtime pid that
-    `holo stop --force` SIGKILLs: O_NOFOLLOW refuses a planted symlink and 0o600 keeps them owner-only
-    from the first byte, so neither can be steered into authenticating or killing the wrong target.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with contextlib.suppress(OSError):
-        path.parent.chmod(0o700)  # owner-only ~/.holo; no-op on Windows
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(path, flags, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        if os.name == "posix":
-            os.fchmod(fd, 0o600)  # enforce owner-only even if the file pre-existed
-        fh.write(content)
-    return path
-
-
-def _write_pid_file(port: int, pid: int) -> Path | None:
-    """Best-effort publish of the runtime pid; None when it could not be written."""
-    try:
-        return _write_owner_only(pid_file_path(port), str(pid))
-    except OSError as exc:
-        logger.warning("could not write pid file %s: %s", pid_file_path(port), exc)
-        return None
-
-
-def _unlink_token_if_ours(path: Path, token: str) -> None:
-    """Remove our token file, but never one a concurrent spawner already overwrote with its own token."""
-    try:
-        if path.read_text(encoding="utf-8").strip() == token:
-            path.unlink(missing_ok=True)
-    except OSError:
-        pass
-
-
-async def _spawn(
-    *, config: SpawnConfig, token: str, settings: HoloSettings
-) -> tuple[subprocess.Popen[bytes], str | None]:
-    """Spawn the binary and wait for health; returns the process and its reported version."""
-    server_url = f"http://{LOOPBACK_HOST}:{config.port}"
-    extra = {AUTH_TOKEN_ENV: token, PORT_ENV: str(config.port)}
-    if config.fake:
-        extra["HAI_AGENT_RUNTIME_FAKE"] = "1"
-    if config.fast:
-        extra["HAI_AGENT_RUNTIME_FAST"] = "1"
-    if config.model:
-        extra["HAI_AGENT_RUNTIME_MODEL"] = config.model
-    if config.base_url:
-        extra["HAI_AGENT_RUNTIME_BASE_URL"] = config.base_url
-    if config.runs_dir:
-        # A quoted "~/..." bypasses shell expansion; never hand the binary a literal tilde.
-        extra["HAI_AGENT_RUNTIME_RUNS_DIR"] = str(config.runs_dir.expanduser())
-    env = runtime_child_env(extra, settings=settings)
-
-    # resolve_command may download the runtime on first run; keep that off the event loop.
-    cmd = await asyncio.to_thread(resolve_command, settings=settings)
-    log_path = runtime_log_path(config.port)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    logger.info("spawning agent binary: %s (stderr -> %s)", " ".join(cmd), log_path)
-    # Own process group so we can reap grandchildren (e.g. desktop helpers) the binary may spawn:
-    # POSIX gets its own session; Windows a new process group. Each kwarg is a no-op on the other OS.
-    with log_path.open("wb") as log_file:  # child inherits the fd; the parent handle can close right away
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=log_file,
-            env=env,
-            start_new_session=os.name == "posix",
-            creationflags=0 if os.name == "posix" else getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-        )
-
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + SPAWN_TIMEOUT_S
-    try:
-        while True:
-            probe = await probe_health(server_url)
-            if probe is not None:
-                logger.info("agent binary ready (pid %d)", proc.pid)
-                return proc, probe.version
-            if proc.poll() is not None:
-                raise RuntimeError(
-                    f"hai-agent-runtime exited with code {proc.returncode}: {_log_tail(log_path)} (full log: {log_path})"
-                )
-            if loop.time() >= deadline:
-                raise RuntimeError(
-                    f"hai-agent-runtime did not become healthy within {SPAWN_TIMEOUT_S:.0f}s (see {log_path})"
-                )
-            await asyncio.sleep(0.25)
-    except BaseException:
-        # Covers CancelledError too (Ctrl+C mid-spawn): never leak the child we just started.
-        _terminate(proc)
-        raise
-
-
-def _log_tail(path: Path) -> str:
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace").strip()
-    except OSError:
-        return "(stderr log unreadable)"
-    if not text:
-        return "(no stderr output)"
-    return text[-LOG_TAIL_CHARS:]
-
-
-def _signal_runtime(proc: subprocess.Popen[bytes], *, force: bool) -> bool:
-    """Signal the runtime's whole process group (posix) or just the process; False if already gone."""
-    if os.name == "posix":
-        return _killpg_posix(proc.pid, signal.SIGKILL if force else signal.SIGTERM)
-    try:
-        if force:
-            proc.kill()
-        else:
-            proc.terminate()
-    except (OSError, ProcessLookupError):
-        return False
-    return True
-
-
-def _terminate(proc: subprocess.Popen[bytes]) -> None:
-    if not _signal_runtime(proc, force=False):
-        return
-    try:
-        proc.wait(timeout=2.0)
-        return
-    except subprocess.TimeoutExpired:
-        pass
-    if _signal_runtime(proc, force=True):
-        try:
-            proc.wait(timeout=2.0)
-        except subprocess.TimeoutExpired:
-            logger.warning("hai-agent-runtime (pid %d) did not exit after forced kill", proc.pid)
-
 
 async def _graceful_stop(proc: subprocess.Popen[bytes]) -> None:
-    if proc.poll() is not None:
-        return
-    await asyncio.to_thread(_terminate, proc)
+    await asyncio.to_thread(terminate, proc)

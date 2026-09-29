@@ -81,7 +81,14 @@ class HoloAcpAgent:
             async with self._api_lock:
                 if self._client is None:
                     self._daemon = await ensure_running_from_env()
-                    self._client = AgentApiClient(self._daemon.base_url, self._daemon.token)
+                    self._client = AgentApiClient(
+                        self._daemon.base_url,
+                        self._daemon.token,
+                        runtime=None
+                        if getattr(self._daemon, "legacy", False)
+                        else getattr(self._daemon, "runtime", None),
+                        auto_bridges=not getattr(self._daemon, "legacy", False),
+                    )
         return self._client
 
     async def initialize(

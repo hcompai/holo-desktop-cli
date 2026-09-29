@@ -11,7 +11,6 @@ values stay in the env only — the launcher never writes user secrets to disk.
 from __future__ import annotations
 
 import asyncio
-import logging
 import socket
 import stat
 import sys
@@ -29,14 +28,14 @@ from holo_desktop.agent_client import launcher
 # Serves 200 on every GET so ensure_running's /health handshake succeeds.
 HEALTHY_BINARY = textwrap.dedent(
     """
-    import os
+    import json, os
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(b"ok")
+            self.wfile.write(json.dumps({"status": "ok", "recipe": "shared"}).encode())
 
         def log_message(self, *args):
             pass
@@ -59,7 +58,7 @@ def _use_stub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, str(script)])
     monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
     monkeypatch.setattr(launcher, "LOG_DIR", tmp_path / "logs")
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
 
 
 async def _ensure_running(config: launcher.SpawnConfig) -> launcher.AgentDaemon:
@@ -68,8 +67,9 @@ async def _ensure_running(config: launcher.SpawnConfig) -> launcher.AgentDaemon:
 
 class _HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        self.send_response(200 if self.path == "/health" else 404)
+        self.send_response(200)
         self.end_headers()
+        self.wfile.write(b'{"status":"ok","recipe":"shared"}')
 
     def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
         return
@@ -161,6 +161,7 @@ def test_attach_env_token_wins_over_token_file(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
     monkeypatch.setenv(launcher.AUTH_TOKEN_ENV, "env-token")
     with _fake_agent_server() as port:
+        launcher.token_file_path(port).parent.mkdir(parents=True, exist_ok=True)
         launcher.token_file_path(port).write_text("file-token", encoding="utf-8")
         daemon = asyncio.run(_ensure_running(launcher.SpawnConfig(port=port)))
     assert daemon.token == "env-token"
@@ -171,6 +172,7 @@ def test_attaching_client_never_deletes_the_token_file(tmp_path: Path, monkeypat
     monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
     monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
     with _fake_agent_server() as port:
+        launcher.token_file_path(port).parent.mkdir(parents=True, exist_ok=True)
         launcher.token_file_path(port).write_text("file-token", encoding="utf-8")
 
         async def attach_and_close() -> None:
@@ -180,25 +182,6 @@ def test_attaching_client_never_deletes_the_token_file(tmp_path: Path, monkeypat
 
         asyncio.run(attach_and_close())
         assert launcher.token_file_path(port).exists()
-
-
-def test_unreadable_token_file_logs_a_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    # A missing file is the normal case and stays quiet; any other OS error
-    # (here: the path is a directory) must be surfaced, not swallowed.
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
-    port = _free_port()
-
-    with caplog.at_level(logging.WARNING):
-        assert launcher._read_token_file(port) == ""
-    assert not caplog.records, "a missing token file is expected and must stay quiet"
-
-    launcher.token_file_path(port).mkdir(parents=True)
-    with caplog.at_level(logging.WARNING):
-        assert launcher._read_token_file(port) == ""
-    assert any(str(launcher.token_file_path(port)) in r.getMessage() for r in caplog.records)
 
 
 def test_attach_without_env_or_file_names_both_sources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
