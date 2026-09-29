@@ -91,6 +91,8 @@ def test_request_survives_a_wire_round_trip(holo_home: Path) -> None:
 
     # What the client actually sends must validate server-side as a SessionRequest.
     payload = request.model_dump(mode="json", exclude_none=True)
+    # A stale vendored contract silently drops host and turns a local request into cloud provisioning.
+    assert payload["agent"]["environments"][0]["host"] == "user_device"
     parsed = SessionRequest.model_validate(payload)
 
     agent = _inline_agent(parsed)
