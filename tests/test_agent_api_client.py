@@ -212,6 +212,28 @@ def test_create_session_sends_bearer_token_and_returns_id() -> None:
     assert req.authorization == f"Bearer {TOKEN}"
 
 
+def test_close_stops_sdk_owned_bridges_and_cancels_before_closing_http(monkeypatch) -> None:
+    from hai_agents_local import sessions
+
+    stopped = []
+    # Stub device startup only; session ownership and cleanup use the real SDK.
+    monkeypatch.setattr(sessions, "ensure_bridges", lambda bridges: ["fixture-device"])
+    monkeypatch.setattr(sessions, "stop_bridges", lambda ids: stopped.extend(ids))
+    api = FakeAgentApi()
+    with _serve(api) as url:
+
+        async def go():
+            async with AgentApiClient(url, TOKEN) as client:
+                await client.create_session(SessionRequest(agent="holo", messages="say hi"))
+
+        asyncio.run(go())
+    assert stopped == ["fixture-device"]
+    assert [(r.method, r.path) for r in api.requests] == [
+        ("POST", "/api/v2/sessions"),
+        ("DELETE", f"/api/v2/sessions/{SESSION_ID}"),
+    ]
+
+
 def test_send_message_body_is_a_tagged_user_message_event() -> None:
     api = FakeAgentApi()
     with _serve(api) as url:

@@ -63,7 +63,10 @@ class AgentApiClient:
         await self.aclose()
 
     async def aclose(self) -> None:
-        await self._http.aclose()
+        try:
+            await self._sdk.aclose()
+        finally:
+            await self._http.aclose()
 
     async def create_session(self, request: SessionRequest) -> str:
         """Create a session and return its id."""
