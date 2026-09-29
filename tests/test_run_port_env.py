@@ -52,16 +52,25 @@ class _AgentApiHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            self._empty(200)
+            self._json({"status": "ok", "recipe": "shared"})
+        elif self.path.startswith("/api/v2/sessions?"):
+            self._json({"items": [], "total": 0})
         elif "/changes" in self.path:
             self._json(self.changes)
         else:
             self._empty(404)
 
     def do_POST(self) -> None:
-        self.rfile.read(int(self.headers.get("Content-Length", "0") or "0"))
+        request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0") or "0")) or b"{}")
         if self.path.endswith("/sessions"):
-            self._json({"id": "fake-session"})
+            self._json(
+                {
+                    "id": "fake-session",
+                    "request": request,
+                    "status": {"status": "pending"},
+                    "created_at": "2026-09-29T12:00:00Z",
+                }
+            )
         else:
             self._empty(404)
 
@@ -84,6 +93,7 @@ def _fake_agent_server() -> Iterator[int]:
 @pytest.mark.timeout(60)
 def test_run_attaches_to_port_from_env(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
+    monkeypatch.setenv("HAI_AUTO_BRIDGE", "0")
     monkeypatch.setenv("HAI_API_KEY", "test-key")  # bypass the interactive login bootstrap
     # Crash-only stub: if `run` ignores the env port it tries to spawn on the
     # default port and must die loudly — never fall through to a real binary on PATH.
@@ -101,6 +111,7 @@ def test_run_points_at_login_when_the_gateway_rejects_the_key(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
+    monkeypatch.setenv("HAI_AUTO_BRIDGE", "0")
     monkeypatch.setenv("HAI_API_KEY", "stale-key")
     monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, "-c", "raise SystemExit(2)"])
     monkeypatch.setattr(

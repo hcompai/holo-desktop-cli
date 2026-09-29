@@ -59,7 +59,7 @@ def _fake_agent_server(version: str) -> Iterator[int]:
 @pytest.fixture()
 def holo_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(runtime_install, "RUNTIME_DIR", tmp_path / "runtime")
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
     monkeypatch.setattr(launcher, "LOG_DIR", tmp_path / "logs")
     monkeypatch.setattr(customization, "SKILLS_DIR", tmp_path / "skills")
     monkeypatch.setattr(bootstrap, "USER_ENV_PATH", tmp_path / ".env")
@@ -176,8 +176,8 @@ def test_permissions_guidance_hidden_after_first_run_completes(holo_home: Path) 
 @pytest.mark.skipif(sys.platform != "darwin", reason="TCC guidance is macOS-only")
 def test_permissions_guidance_reappears_on_permission_shaped_log(holo_home: Path) -> None:
     runtime_install.mark_first_run_complete(runtime_install.PINNED_RUNTIME_VERSION)
-    log_dir = holo_home / "logs"
-    log_dir.mkdir()
+    log_dir = launcher.runtime_log_path(PORT).parent
+    log_dir.mkdir(parents=True)
     (log_dir / f"hai-agent-runtime-{PORT}.log").write_text("screen recording denied by TCC\n", encoding="utf-8")
     assert doctor.permissions_guidance_needed(PORT)
 

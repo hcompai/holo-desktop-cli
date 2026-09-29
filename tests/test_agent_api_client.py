@@ -116,7 +116,15 @@ def _make_handler(api: FakeAgentApi) -> type[BaseHTTPRequestHandler]:
             self._record()
             path = urlparse(self.path).path
             if path == "/api/v2/sessions":
-                self._json(200, {"id": SESSION_ID})
+                self._json(
+                    200,
+                    {
+                        "id": SESSION_ID,
+                        "request": api.requests[-1].body,
+                        "status": {"status": "pending"},
+                        "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                    },
+                )
             elif path.endswith("/messages") or path.endswith("/pause"):
                 self._json(202, None)
             else:

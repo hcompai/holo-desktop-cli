@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from agent_interface.specs.agent import Agent
+from agent_interface.specs.environment import Desktop
 from agent_interface.specs.session import SessionRequest
 from agent_interface.specs.skill import Skill
 
 from holo_desktop import customization
 
 HOLO_AGENT_NAME = "holo"
-HOLO_AGENT_DESCRIPTION = "Desktop agent that drives the user's machine via H Company's Holo3 VLM."
-# Catalog id only: the spec requires a non-empty `environments` list, but the binary pins the desktop environment per process and never resolves this entry.
+HOLO_AGENT_DESCRIPTION = "Desktop agent that drives the user's machine via H Company's shared agent recipe."
+# The SDK binds this inline device specification to its owned local executor.
 DESKTOP_ENVIRONMENT_ID = "desktop"
 
 
@@ -24,7 +25,7 @@ def build_session_request(
     agent = Agent(
         name=HOLO_AGENT_NAME,
         description=HOLO_AGENT_DESCRIPTION,
-        environments=[DESKTOP_ENVIRONMENT_ID],
+        environments=[Desktop(id=DESKTOP_ENVIRONMENT_ID, host="user_device")],
         model=None,  # spawn-time HAI_AGENT_RUNTIME_MODEL wins, no per-request override
         instructions=instructions or None,
         subagents=None,

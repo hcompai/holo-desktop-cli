@@ -13,6 +13,7 @@ from typing import Protocol
 import httpx
 from agent_interface.specs.session import SessionRequest
 from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents.core.api_error import ApiError
 
 from holo_desktop.agent_client.desktop_lock import desktop_turn
 from holo_desktop.agent_client.events import answer_text, as_text, is_answer
@@ -280,8 +281,9 @@ async def _create_or_continue(
         try:
             await client.send_message(session.session_id, text)
             return session.session_id
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code not in _DEAD_SESSION_CODES:
+        except (httpx.HTTPStatusError, ApiError) as exc:
+            code = exc.status_code if isinstance(exc, ApiError) else exc.response.status_code
+            if code not in _DEAD_SESSION_CODES:
                 raise
             session.reset()
     request = build_session_request(

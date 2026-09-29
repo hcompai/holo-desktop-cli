@@ -7,9 +7,9 @@ from collections.abc import AsyncIterator
 from types import TracebackType
 
 import httpx
-from agent_interface.definition import UserMessageEvent
 from agent_interface.specs.session import SessionRequest, SessionStatus
 from agp_types import TrajectoryChanges, TrajectoryEvent, TrajectoryStatus
+from hai_agents import AsyncClient
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +37,18 @@ def _coerce_status(payload: object) -> object:
 class AgentApiClient:
     """Authenticated async client bound to one agent-API base URL."""
 
-    def __init__(self, base_url: str, token: str, *, timeout: float = 60.0) -> None:
+    def __init__(
+        self, base_url: str, token: str, *, timeout: float = 60.0, runtime=None, auto_bridges: bool = True
+    ) -> None:
         self._http = httpx.AsyncClient(
             base_url=f"{base_url}{API_PREFIX}",
             headers={"Authorization": f"Bearer {token}"},
             timeout=httpx.Timeout(timeout, connect=5.0),
+        )
+        self._sdk = (
+            AsyncClient(mode="local", runtime=runtime, auto_bridges=auto_bridges, httpx_client=self._http)
+            if runtime is not None
+            else AsyncClient(base_url=base_url, api_key=token, auto_bridges=auto_bridges, httpx_client=self._http)
         )
 
     async def __aenter__(self) -> AgentApiClient:
@@ -60,44 +67,38 @@ class AgentApiClient:
 
     async def create_session(self, request: SessionRequest) -> str:
         """Create a session and return its id."""
-        resp = await self._http.post("/sessions", json=request.model_dump(mode="json", exclude_none=True))
-        resp.raise_for_status()
-        return str(resp.json()["id"])
+        session = await self._sdk.sessions.create_session(**request.model_dump(mode="json", exclude_none=True))
+        return str(session.id)
 
     async def get_changes(
         self, session_id: str, from_index: int, *, wait_for_seconds: int, include_events: bool
     ) -> TrajectoryChanges | None:
         """One long-poll for changes since ``from_index``; ``None`` when nothing arrived (204)."""
-        resp = await self._http.get(
-            f"/sessions/{session_id}/changes",
-            params={"from_index": from_index, "wait_for_seconds": wait_for_seconds, "include_events": include_events},
+        changes = await self._sdk.sessions.get_session_changes(
+            session_id,
+            from_index=from_index,
+            wait_for_seconds=wait_for_seconds,
+            include_events=include_events,
         )
-        if resp.status_code == 204:
-            return None
-        resp.raise_for_status()
-        return TrajectoryChanges.model_validate(_coerce_status(resp.json()))
+        return (
+            None
+            if changes is None
+            else TrajectoryChanges.model_validate(_coerce_status(changes.model_dump(mode="json")))
+        )
 
     async def get_status(self, session_id: str) -> SessionStatus:
         """Live session status; authoritative for terminal detection (``/changes`` 204s past the tail)."""
-        resp = await self._http.get(f"/sessions/{session_id}/status")
-        resp.raise_for_status()
-        return SessionStatus.model_validate(_coerce_status(resp.json()))
+        status = await self._sdk.sessions.get_session_status(session_id)
+        return SessionStatus.model_validate(_coerce_status(status.model_dump(mode="json")))
 
     async def send_message(self, session_id: str, text: str) -> None:
-        # Body is a server-side tagged union, so the typed model's "type" discriminator is required.
-        body = UserMessageEvent(message=text).model_dump(mode="json")
-        resp = await self._http.post(f"/sessions/{session_id}/messages", json=body)
-        resp.raise_for_status()
+        await self._sdk.sessions.send_session_messages(session_id, request={"type": "user_message", "message": text})
 
     async def pause(self, session_id: str) -> None:
-        """Freeze the agent after its current step; pairs with cancel for a responsive stop."""
-        resp = await self._http.post(f"/sessions/{session_id}/pause")
-        resp.raise_for_status()
+        await self._sdk.sessions.pause_session(session_id)
 
     async def cancel(self, session_id: str) -> None:
-        resp = await self._http.delete(f"/sessions/{session_id}")
-        if resp.status_code not in (200, 204):
-            resp.raise_for_status()
+        await self._sdk.sessions.cancel_session(session_id)
 
     def stream(self, session_id: str, *, from_index: int = 0) -> SessionStream:
         return SessionStream(self, session_id, from_index=from_index)

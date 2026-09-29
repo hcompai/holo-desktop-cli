@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import httpx
 import tyro
+from hai_agents.core.api_error import ApiError
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -178,7 +179,7 @@ def run(
                     "holo mcp). Restart that process so the grants latch, or pass --port to spawn a fresh "
                     "runtime here.[/dim]"
                 )
-    except (RuntimeError, httpx.HTTPError) as exc:
+    except (RuntimeError, httpx.HTTPError, ApiError) as exc:
         die(type(exc).__name__, str(exc))
         return
     finally:
@@ -259,7 +260,12 @@ async def _drive(
     )
     spawned = daemon.proc is not None
     try:
-        async with AgentApiClient(daemon.base_url, daemon.token) as client:
+        async with AgentApiClient(
+            daemon.base_url,
+            daemon.token,
+            runtime=None if getattr(daemon, "legacy", False) else getattr(daemon, "runtime", None),
+            auto_bridges=not getattr(daemon, "legacy", False),
+        ) as client:
             session = Session()
             feed = None if quiet else LiveFeed(console, expand=expand)
 

@@ -33,7 +33,7 @@ STUB_BINARY = textwrap.dedent(
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(b"ok")
+            self.wfile.write(json.dumps({"status": "ok", "recipe": os.environ.get("HAI_AGENT_RUNTIME_RECIPE", "shared")}).encode())
 
         def log_message(self, *args):
             pass

@@ -27,6 +27,7 @@ dependencies = [
     # Agent-API wire contract (Pydantic specs + agp_types) for talking to the closed
     # hai-agent-runtime binary; the wheel vendors agent_interface + agp_types as the only source of the spec types.
     "hai-agent-api>=0.1.15",
+    "hai-agents[desktop]>=1.0.12",
     # CLI / serve (A2A) / acp / mcp adapter surface.
     "a2a-sdk[http-server]>=1.0.3",
     "agent-client-protocol>=0.10",

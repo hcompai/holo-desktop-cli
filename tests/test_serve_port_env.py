@@ -27,8 +27,9 @@ serve_mod = importlib.import_module("holo_desktop.cli.serve")
 
 class _HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        self.send_response(200 if self.path == "/health" else 404)
+        self.send_response(200)
         self.end_headers()
+        self.wfile.write(b'{"status":"ok","recipe":"shared"}')
 
     def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
         return

@@ -17,16 +17,20 @@ from pathlib import Path
 from threading import Thread
 
 import pytest
+from hai_agents.local.manifest import PINNED_RUNTIME_VERSION
 
 from holo_desktop.agent_client import launcher
 from holo_desktop.agent_client.launcher import AUTH_TOKEN_ENV, SpawnConfig, ensure_running
-from holo_desktop.agent_client.runtime_install import PINNED_RUNTIME_VERSION
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
     health_body: bytes = b""
 
     def do_GET(self) -> None:
+        if self.path.startswith("/api/v2/sessions"):
+            self.send_response(200 if self.headers.get("Authorization") == "Bearer test-token" else 401)
+            self.end_headers()
+            return
         if self.path != "/health":
             self.send_response(404)
             self.end_headers()
@@ -41,8 +45,10 @@ class _HealthHandler(BaseHTTPRequestHandler):
 
 
 @contextmanager
-def _fake_agent_server(*, health_body: bytes = b"") -> Iterator[int]:
-    handler = type("Handler", (_HealthHandler,), {"health_body": health_body})
+def _fake_agent_server(*, health_body: bytes = b"", recipe: str = "shared") -> Iterator[int]:
+    payload = json.loads(health_body) if health_body else {}
+    payload["recipe"] = recipe
+    handler = type("Handler", (_HealthHandler,), {"health_body": json.dumps(payload).encode()})
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -116,7 +122,7 @@ def test_attach_with_env_fast_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     # they must not block attaching to an already-running local runtime.
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_FAST", "1")
-    with _fake_agent_server() as port:
+    with _fake_agent_server(recipe="desktop") as port:
         monkeypatch.setenv(launcher.PORT_ENV, str(port))
         daemon = asyncio.run(launcher.ensure_running_from_env())
     assert daemon.proc is None

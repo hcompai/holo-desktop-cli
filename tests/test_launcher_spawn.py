@@ -35,7 +35,7 @@ CRASHING_BINARY = textwrap.dedent(
 # the healthy path stays fast even on a heavily contended CI runner.
 CHATTY_BINARY = textwrap.dedent(
     """
-    import os, sys
+    import json, os, sys
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     for _ in range(256):
@@ -46,7 +46,7 @@ CHATTY_BINARY = textwrap.dedent(
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(b"ok")
+            self.wfile.write(json.dumps({"status": "ok", "recipe": os.environ.get("HAI_AGENT_RUNTIME_RECIPE", "shared")}).encode())
 
         def log_message(self, *args):
             pass
@@ -81,7 +81,7 @@ def _use_stub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str) -> N
     monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, str(script)])
     monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
     monkeypatch.setattr(launcher, "LOG_DIR", tmp_path / "logs")
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
 
 
 async def _ensure_running(config: launcher.SpawnConfig) -> launcher.AgentDaemon:
