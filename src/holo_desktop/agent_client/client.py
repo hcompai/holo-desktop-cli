@@ -10,6 +10,7 @@ import httpx
 from agent_interface.specs.session import SessionRequest, SessionStatus
 from agp_types import TrajectoryChanges, TrajectoryEvent, TrajectoryStatus
 from hai_agents import AsyncClient
+from hai_agents.sessions import SendSessionMessagesRequestBody_UserMessage
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ class AgentApiClient:
         return SessionStatus.model_validate(_coerce_status(status.model_dump(mode="json")))
 
     async def send_message(self, session_id: str, text: str) -> None:
-        await self._sdk.sessions.send_session_messages(session_id, request={"type": "user_message", "message": text})
+        await self._sdk.sessions.send_session_messages(session_id, request=SendSessionMessagesRequestBody_UserMessage(message=text))
 
     async def pause(self, session_id: str) -> None:
         await self._sdk.sessions.pause_session(session_id)
