@@ -365,6 +365,5 @@ def log_tail_suggests_permissions(port: int) -> bool:
     return text_suggests_permissions(data.decode("utf-8", errors="replace"))
 
 
-
 async def _graceful_stop(proc: subprocess.Popen[bytes]) -> None:
     await asyncio.to_thread(terminate, proc)
