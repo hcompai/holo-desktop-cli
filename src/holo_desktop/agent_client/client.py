@@ -96,7 +96,9 @@ class AgentApiClient:
         return SessionStatus.model_validate(_coerce_status(status.model_dump(mode="json")))
 
     async def send_message(self, session_id: str, text: str) -> None:
-        await self._sdk.sessions.send_session_messages(session_id, request=SendSessionMessagesRequestBody_UserMessage(message=text))
+        await self._sdk.sessions.send_session_messages(
+            session_id, request=SendSessionMessagesRequestBody_UserMessage(message=text)
+        )
 
     async def pause(self, session_id: str) -> None:
         await self._sdk.sessions.pause_session(session_id)
