@@ -77,7 +77,8 @@ def test_install_ps1_targets_supported_windows_architectures_and_user_path() -> 
     assert "--no-registry" in text
     assert "--reinstall-package holo-desktop-cli" in text
     assert "--find-links" in text
-    assert "--no-build" in text
+    assert '"--no-build-package", [string]$Dependency.name' in text
+    assert '"--no-build")' not in text
     assert "dependency_wheels" in text
     assert "sha256 mismatch for Windows ARM64 dependency" in text
     assert "python -m holo_desktop.installer_bootstrap --yes" in text
