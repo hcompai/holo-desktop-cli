@@ -6,6 +6,7 @@ import subprocess
 from typing import Annotated
 
 import tyro
+from hai_agents_local.runtime.acquire import SHARED_RECIPE
 
 from holo_desktop.agent_client.launcher import (
     AGENT_API_DEFAULT_PORT,
@@ -33,7 +34,7 @@ def agent_api(
         require_api_key(explicit_base_url=base_url, settings=settings)
 
     console = Console(stderr=True)
-    extra = {"HAI_AGENT_RUNTIME_PORT": str(port)}
+    extra = {"HAI_AGENT_RUNTIME_PORT": str(port), "HAI_AGENT_RUNTIME_RECIPE": SHARED_RECIPE}
     if fake:
         extra["HAI_AGENT_RUNTIME_FAKE"] = "1"
     if model:
