@@ -27,7 +27,7 @@ Report client vulnerabilities here. Issues in the runtime binary or the hosted H
 
 A few things below are deliberate, not bugs. Worth knowing before you file:
 
-- **Local API is loopback-only.** The agent API binds `127.0.0.1` and is gated by a per-run bearer token, written owner-only (`0600`, `O_NOFOLLOW`) to `~/.holo/agent-token-<port>`. It isn't meant to be reachable off the machine.
+- **Local API is loopback-only.** The agent API binds `127.0.0.1` and is gated by a per-run bearer token, written owner-only (`0600`, symlinks refused) to `~/.hai/agent-runtime/state/agent-token-<port>`. Every response must carry an HMAC proof that the server holds that token, so a process squatting the port is rejected before it ever receives the bearer. It isn't meant to be reachable off the machine.
 - **Runtime downloads are verified.** The `hai-agent-runtime` binary is fetched over HTTPS (plain HTTP is allowed only against loopback, for local dev), checked against a pinned sha256, and served from an immutable, version-scoped CDN prefix that's never overwritten.
 - **The runtime can see your screen and act for you.** On macOS it needs Accessibility and Screen Recording: it takes screenshots and synthesizes clicks and keystrokes while a task runs. That's the whole point of the product, not a vulnerability.
 - **Local-model mode stays local.** With `--base-url` pointing at your own server, screenshots, keystrokes, and app content never leave the machine, and the hosted `HAI_API_KEY` is stripped from the runtime's environment so it can't leak to a self-hosted endpoint.
