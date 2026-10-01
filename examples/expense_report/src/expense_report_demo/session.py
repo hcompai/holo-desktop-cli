@@ -145,7 +145,7 @@ async def _drive(
     events_path.parent.mkdir(parents=True, exist_ok=True)
     feed = LiveFeed(Console(stderr=True), expand=expand_feed)
     n_steps = 0
-    async with AgentApiClient(daemon.base_url, daemon.token) as client:
+    async with await AgentApiClient.connect(daemon) as client:
         session = Session()
         with events_path.open("w", encoding="utf-8") as sink:
 

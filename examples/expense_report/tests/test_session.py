@@ -17,7 +17,6 @@ import pytest
 from agp_types import TrajectoryStatus
 from holo_desktop.agent_client import launcher, runtime_install
 from holo_desktop.agent_client.session_runner import TurnOutcome
-from holo_desktop.settings import AUTH_TOKEN_ENV
 
 from expense_report_demo.session import Runtime, RuntimeConfig, TaskResult, _project_result
 
@@ -84,7 +83,6 @@ def test_runtime_attaches_to_fake_server_non_fake(
     """Non-fake `Runtime` against a fake agent server: exercises the real
     `require_api_key(settings=)` and `ensure_running(settings=)` wiring without
     the runtime binary."""
-    monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
     monkeypatch.setenv("HAI_API_KEY", "test-key")  # satisfy require_api_key without interactive login
     # Crash-only stub: attaching to the live server must never fall through to spawning a binary.
     monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, "-c", "raise SystemExit(2)"])
