@@ -27,6 +27,7 @@ def build_session_request(
         description=HOLO_AGENT_DESCRIPTION,
         environments=[Desktop(id=DESKTOP_ENVIRONMENT_ID, host="user_device")],
         model=None,  # spawn-time HAI_AGENT_RUNTIME_MODEL wins, no per-request override
+        reasoning_effort=None,
         instructions=instructions or None,
         subagents=None,
         skills=skills or None,

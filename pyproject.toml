@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
     # Agent-API wire contract (Pydantic specs + agp_types) for talking to the closed
     # hai-agent-runtime binary; the wheel vendors agent_interface + agp_types as the only source of the spec types.
-    "hai-agent-api>=0.1.15",
+    "hai-agent-api>=0.1.113",
     "hai-agents[desktop]>=1.0.12",
     # CLI / serve (A2A) / acp / mcp adapter surface.
     "a2a-sdk[http-server]>=1.0.3",
@@ -78,6 +78,10 @@ dev = [
 # checkout, but never packaged into the published holo-desktop-cli wheel.
 [tool.uv.workspace]
 members = ["examples/expense_report"]
+
+# TEMPORARY: unreleased SDK local runtime. Replace with a hai-agents release floor before merging.
+[tool.uv.sources]
+hai-agents = { url = "https://github.com/hcompai/hai-agents-python/archive/a42b972ab5b3ed923d475d91b1a3d9244151606c.tar.gz" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/holo_desktop"]
