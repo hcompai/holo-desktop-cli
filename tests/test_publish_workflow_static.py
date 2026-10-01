@@ -88,7 +88,7 @@ def test_client_release_refuses_placeholder_runtime_and_smokes_windows_arm64() -
     assert "install.ps1" in rendered
     assert "holo.exe" in rendered
     smoke_step = next(step for step in smoke["steps"] if step.get("name") == "Smoke Windows ARM64 installer from CDN")
-    assert smoke_step["env"]["UV_NO_BUILD"] == "1"
+    assert "UV_NO_BUILD" not in smoke_step.get("env", {})
 
 
 def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
@@ -100,7 +100,7 @@ def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
     assert "windows-arm64.txt" in rendered_installer
     assert "HOLO_INSTALL_SKIP_RUN_SETUP" in rendered_installer
     assert "build_windows_arm64_dependency_wheel.ps1" in rendered_installer
-    assert "UV_NO_BUILD" in rendered_installer
+    assert "UV_NO_BUILD" not in rendered_installer
     assert "steps.dependency.outputs.manifest_path" in rendered_installer
     assert "steps.client.outputs.wheel_path" in rendered_installer
     install_step = next(

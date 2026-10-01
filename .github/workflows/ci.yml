@@ -56,7 +56,6 @@ jobs:
           HOLO_HOME: ${{ runner.temp }}\holo-installer-smoke
           HOLO_INSTALL_MANIFEST_URL: ${{ steps.dependency.outputs.manifest_path }}
           HOLO_INSTALL_PACKAGE: ${{ steps.client.outputs.wheel_path }}
-          UV_NO_BUILD: "1"
           HAI_RUNTIME_CANDIDATE_ARCHIVE: ${{ steps.runtime_candidate.outputs.archive_path }}
           HAI_RUNTIME_CANDIDATE_SHA256: ${{ steps.runtime_candidate.outputs.sha256 }}
         run: |
