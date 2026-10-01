@@ -83,7 +83,7 @@ Good to know:
 - **The stop is step-bounded.** It halts the *next* action; the runtime still finishes the action already in flight. `holo stop --force` is the only instant stop.
 - **`holo stop --force` kills the runtime but leaves a headless host running with a dead backend.** `holo serve` / `holo mcp` / `holo acp` spawn their runtime once at startup and keep pointing at it, so after a force-kill the host process stays up but every later task fails (its requests hit a runtime that no longer exists) until you restart the host. Prefer plain `holo stop` there; reserve `--force` for `holo run` or a wedged runtime.
 - **The guard only inspects `Esc` timing**, never keystroke content — but it does hold Input Monitoring continuously while installed. Disable the embedded listener for a single run with `holo run --no-kill-switch`.
-- **`holo stop --force` reads a pid file and does not yet verify process identity.** A runtime that exited uncleanly can leave a stale `~/.hai/agent-runtime/state/agent-pid-<port>` behind, so a force-kill may target a recycled pid. Robust start-time matching is tracked as follow-up.
+- **`holo stop --force` matches pids by command line only.** A runtime that exited uncleanly can leave a stale `~/.hai/agent-runtime/state/agent-pid-<port>` behind; the pid is killed only if its command line names the runtime binary, so a recycled pid now running another runtime instance could still be targeted.
 - **Wayland (Linux) has no global key listener.** Use `holo stop` instead, bound to a compositor hotkey.
 
 ### How the stop signal works
