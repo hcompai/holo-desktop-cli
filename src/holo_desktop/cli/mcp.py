@@ -46,18 +46,15 @@ class Lifespan:
 @asynccontextmanager
 async def lifespan(_: FastMCP) -> AsyncIterator[Lifespan]:
     daemon = await ensure_running_from_env()
-    client = AgentApiClient(
-        daemon.base_url,
-        daemon.token,
-        runtime=None if getattr(daemon, "legacy", False) else getattr(daemon, "runtime", None),
-        auto_bridges=not getattr(daemon, "legacy", False),
-    )
-    state = Lifespan(client=client, daemon=daemon)
     try:
-        yield state
+        client = await AgentApiClient.connect(daemon)
+        state = Lifespan(client=client, daemon=daemon)
+        try:
+            yield state
+        finally:
+            await _cancel_active_sessions_best_effort(state)
+            await client.aclose()
     finally:
-        await _cancel_active_sessions_best_effort(state)
-        await client.aclose()
         await daemon.aclose()
 
 

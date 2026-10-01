@@ -30,9 +30,15 @@ from urllib.parse import parse_qs, urlparse
 from agent_interface.definition import UserMessageEvent
 from agent_interface.specs.session import SessionRequest, SessionStatus
 from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents_local.runtime import LocalRuntime
+from hai_agents_local.runtime.acquire import SHARED_RECIPE
+from hai_agents_local.runtime.state import resolve_cache_dir
 from pydantic import BaseModel, Field, TypeAdapter
 
 from holo_desktop.agent_client.client import AgentApiClient, SessionStream
+from holo_desktop.agent_client.launcher import AgentDaemon
+
+from ._runtime_stub import ProvingHandler
 
 SESSION_ID = "11111111-2222-3333-4444-555555555555"
 TOKEN = "test-token"
@@ -84,9 +90,8 @@ class FakeAgentApi:
 
 
 def _make_handler(api: FakeAgentApi) -> type[BaseHTTPRequestHandler]:
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
-            return
+    class Handler(ProvingHandler):
+        token = TOKEN
 
         def _record(self) -> None:
             length = int(self.headers.get("Content-Length") or 0)
@@ -131,6 +136,9 @@ def _make_handler(api: FakeAgentApi) -> type[BaseHTTPRequestHandler]:
                 self._json(404, None)
 
         def do_GET(self) -> None:
+            if self.path == "/health":
+                self._json(200, {"status": "ok", "recipe": SHARED_RECIPE})
+                return
             self._record()
             path = urlparse(self.path).path
             if path.endswith("/changes"):
@@ -160,6 +168,20 @@ def _serve(api: FakeAgentApi) -> Iterator[str]:
         thread.join(timeout=5.0)
 
 
+async def _connect(url: str) -> AgentApiClient:
+    runtime = LocalRuntime(
+        base_url=url,
+        api_key=TOKEN,
+        pid=None,
+        version=None,
+        log_path=None,
+        owned=False,
+        cache_dir=resolve_cache_dir(),
+        port=urlparse(url).port or 0,
+    )
+    return await AgentApiClient.connect(AgentDaemon(runtime=runtime, recipe=SHARED_RECIPE))
+
+
 def _event(kind: str, **data: object) -> dict:
     return {
         "type": "AgentEvent",
@@ -184,7 +206,7 @@ def _run_stream(api: FakeAgentApi, *, from_index: int) -> tuple[list[TrajectoryE
     """Stream a session to end-of-turn against the fake; bounded so a 204 spin fails the test instead of hanging."""
 
     async def go(url: str) -> tuple[list[TrajectoryEvent], SessionStream]:
-        async with AgentApiClient(url, TOKEN) as client:
+        async with await _connect(url) as client:
             stream = client.stream(SESSION_ID, from_index=from_index)
             collected = await asyncio.wait_for(_collect(stream.events()), timeout=STREAM_TIMEOUT_S)
             return collected, stream
@@ -201,7 +223,7 @@ def test_create_session_sends_bearer_token_and_returns_id() -> None:
     with _serve(api) as url:
 
         async def go() -> str:
-            async with AgentApiClient(url, TOKEN) as client:
+            async with await _connect(url) as client:
                 return await client.create_session(SessionRequest(agent="holo", messages="say hi"))
 
         session_id = asyncio.run(go())
@@ -218,12 +240,13 @@ def test_close_stops_sdk_owned_bridges_and_cancels_before_closing_http(monkeypat
     stopped = []
     # Stub device startup only; session ownership and cleanup use the real SDK.
     monkeypatch.setattr(sessions, "ensure_bridges", lambda bridges: ["fixture-device"])
+    monkeypatch.setattr(sessions, "serving_bridges", lambda ids: ids)
     monkeypatch.setattr(sessions, "stop_bridges", lambda ids: stopped.extend(ids))
     api = FakeAgentApi()
     with _serve(api) as url:
 
         async def go():
-            async with AgentApiClient(url, TOKEN) as client:
+            async with await _connect(url) as client:
                 await client.create_session(SessionRequest(agent="holo", messages="say hi"))
 
         asyncio.run(go())
@@ -239,7 +262,7 @@ def test_send_message_body_is_a_tagged_user_message_event() -> None:
     with _serve(api) as url:
 
         async def go() -> None:
-            async with AgentApiClient(url, TOKEN) as client:
+            async with await _connect(url) as client:
                 await client.send_message(SESSION_ID, "follow-up")
 
         asyncio.run(go())
@@ -258,7 +281,7 @@ def test_pause_posts_to_the_pause_endpoint() -> None:
     with _serve(api) as url:
 
         async def go() -> None:
-            async with AgentApiClient(url, TOKEN) as client:
+            async with await _connect(url) as client:
                 await client.pause(SESSION_ID)
 
         asyncio.run(go())
@@ -391,7 +414,7 @@ def test_get_status_hits_the_status_endpoint() -> None:
     with _serve(api) as url:
 
         async def go() -> SessionStatus:
-            async with AgentApiClient(url, TOKEN) as client:
+            async with await _connect(url) as client:
                 return await client.get_status(SESSION_ID)
 
         status = asyncio.run(go())

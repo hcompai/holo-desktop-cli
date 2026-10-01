@@ -12,7 +12,7 @@ import json
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from threading import Thread
 
 import pytest
@@ -20,6 +20,8 @@ import pytest
 from holo_desktop.agent_client import launcher
 from holo_desktop.agent_client.launcher import AUTH_TOKEN_ENV, PORT_ENV
 from holo_desktop.cli.run import run
+
+from ._runtime_stub import ProvingHandler
 
 FAKE_ANSWER = "42 unread emails"
 
@@ -31,9 +33,10 @@ _COMPLETED_CHANGES = {
 }
 
 
-class _AgentApiHandler(BaseHTTPRequestHandler):
+class _AgentApiHandler(ProvingHandler):
     """Minimal agent-API: healthy, one session, immediately-terminal trajectory."""
 
+    token = "test-token"
     protocol_version = "HTTP/1.1"
     changes: dict[str, object] = _COMPLETED_CHANGES
 
@@ -73,9 +76,6 @@ class _AgentApiHandler(BaseHTTPRequestHandler):
             )
         else:
             self._empty(404)
-
-    def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
-        return
 
 
 @contextmanager

@@ -2,21 +2,19 @@
 
 from __future__ import annotations
 
-import asyncio
 import platform
 import shutil
 
+from hai_agents_local.runtime import LocalRuntime, LocalRuntimeError
 from pydantic import BaseModel
 
 from holo_desktop import customization
-from holo_desktop.agent_client import launcher, runtime_install
+from holo_desktop.agent_client import runtime_install
 from holo_desktop.agent_client.launcher import (
     AUTH_TOKEN_ENV,
-    LOOPBACK_HOST,
     log_tail_suggests_permissions,
     port_from_env,
-    probe_health,
-    token_file_path,
+    runtime_log_path,
 )
 from holo_desktop.cli import bootstrap
 from holo_desktop.cli.bootstrap import load_holo_env, read_user_env_key
@@ -71,26 +69,27 @@ def check_login(settings: HoloSettings) -> CheckResult:
 
 def check_agent_api(settings: HoloSettings) -> CheckResult:
     port = port_from_env(settings=settings)
-    probe = asyncio.run(probe_health(f"http://{LOOPBACK_HOST}:{port}"))
-    if probe is None:
-        return CheckResult(name="agent-api", ok=True, detail=f"no server on port {port} (spawns on demand)")
-    version = probe.version or "unknown version"
-    if version != runtime_install.PINNED_RUNTIME_VERSION and probe.version is not None:
-        version = f"{version} (client pins {runtime_install.PINNED_RUNTIME_VERSION})"
-    has_token = bool(settings.runtime.api_token) or token_file_path(port).is_file()
-    if not has_token:
+    try:
+        runtime = LocalRuntime.attach(port=port)
+    except LocalRuntimeError as exc:
         return CheckResult(
             name="agent-api",
             ok=False,
-            detail=f"server running on port {port} ({version}) but no credentials to attach",
+            detail=f"server on port {port} cannot be attached: {exc}",
             fix=f"export {AUTH_TOKEN_ENV}, or stop that server so holo can spawn its own",
         )
-    return CheckResult(name="agent-api", ok=True, detail=f"server running on port {port} ({version}), token available")
+    if runtime is None:
+        return CheckResult(name="agent-api", ok=True, detail=f"no server on port {port} (spawns on demand)")
+    version = runtime.version or "unknown version"
+    if runtime.version is not None and runtime.version != runtime_install.PINNED_RUNTIME_VERSION:
+        version = f"{version} (client pins {runtime_install.PINNED_RUNTIME_VERSION})"
+    return CheckResult(name="agent-api", ok=True, detail=f"server running on port {port} ({version}), token verified")
 
 
-def check_holo_dir() -> CheckResult:
+def check_holo_dir(settings: HoloSettings) -> CheckResult:
     skills = sorted(customization.SKILLS_DIR.glob("*/SKILL.md"))
-    logs = sorted(launcher.LOG_DIR.glob("hai-agent-runtime-*.log")) if launcher.LOG_DIR.is_dir() else []
+    log_dir = runtime_log_path(port_from_env(settings=settings)).parent
+    logs = sorted(log_dir.glob("hai-agent-runtime-*.log")) if log_dir.is_dir() else []
     log_note = f"; latest runtime log: {logs[-1]}" if logs else ""
     if not skills:
         return CheckResult(
@@ -115,7 +114,7 @@ def permissions_guidance_needed(port: int) -> bool:
 
 
 def run_checks(settings: HoloSettings) -> list[CheckResult]:
-    return [check_binary(), check_login(settings), check_agent_api(settings), check_holo_dir()]
+    return [check_binary(), check_login(settings), check_agent_api(settings), check_holo_dir(settings)]
 
 
 def doctor() -> None:

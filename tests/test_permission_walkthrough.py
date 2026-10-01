@@ -31,14 +31,18 @@ def test_first_run_pending_until_marked_complete(runtime_dir: Path) -> None:
     assert not runtime_install.first_run_pending(runtime_install.PINNED_RUNTIME_VERSION)
 
 
-def test_log_tail_detects_permission_shaped_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(launcher, "LOG_DIR", tmp_path)
-    port = 12345
-    log = tmp_path / f"hai-agent-runtime-{port}.log"
+def _write_runtime_log(port: int, text: str) -> Path:
+    log = launcher.runtime_log_path(port)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(text, encoding="utf-8")
+    return log
 
+
+def test_log_tail_detects_permission_shaped_errors() -> None:
+    port = 12345
     assert not launcher.log_tail_suggests_permissions(port), "missing log must not match"
 
-    log.write_text("error: screen recording permission denied by TCC\n", encoding="utf-8")
+    log = _write_runtime_log(port, "error: screen recording permission denied by TCC\n")
     assert launcher.log_tail_suggests_permissions(port)
 
     log.write_text("error: connection refused\n", encoding="utf-8")
@@ -85,12 +89,9 @@ def _run_with_scripted_drive(
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="walkthrough is macOS-only")
 def test_permission_failure_on_first_managed_run_retries_once(
-    runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    runtime_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
-    monkeypatch.setattr(launcher, "LOG_DIR", log_dir)
-    (log_dir / f"hai-agent-runtime-{TEST_PORT}.log").write_text("accessibility not granted", encoding="utf-8")
+    _write_runtime_log(TEST_PORT, "accessibility not granted")
 
     attempts = _run_with_scripted_drive(
         monkeypatch, [(None, "failed", "permission boom"), ("done", "completed", None)], spawned=True
@@ -103,13 +104,10 @@ def test_permission_failure_on_first_managed_run_retries_once(
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="walkthrough is macOS-only")
 def test_permission_shaped_session_error_retries_even_without_log_match(
-    runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    runtime_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The runtime may report TCC failures only via the agent API, never via stderr."""
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
-    monkeypatch.setattr(launcher, "LOG_DIR", log_dir)
-    (log_dir / f"hai-agent-runtime-{TEST_PORT}.log").write_text("model endpoint 500", encoding="utf-8")
+    _write_runtime_log(TEST_PORT, "model endpoint 500")
 
     attempts = _run_with_scripted_drive(
         monkeypatch, [(None, "failed", "screen recording not permitted"), ("done", "completed", None)], spawned=True
@@ -119,10 +117,8 @@ def test_permission_shaped_session_error_retries_even_without_log_match(
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="walkthrough is macOS-only")
 def test_permission_shaped_session_error_retries_with_missing_log(
-    runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    runtime_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(launcher, "LOG_DIR", tmp_path / "no-such-dir")
-
     attempts = _run_with_scripted_drive(
         monkeypatch, [(None, "failed", "accessibility access denied by TCC"), ("done", "completed", None)], spawned=True
     )
@@ -130,13 +126,8 @@ def test_permission_shaped_session_error_retries_with_missing_log(
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="walkthrough is macOS-only")
-def test_non_permission_failure_does_not_retry(
-    runtime_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
-    monkeypatch.setattr(launcher, "LOG_DIR", log_dir)
-    (log_dir / f"hai-agent-runtime-{TEST_PORT}.log").write_text("model endpoint 500", encoding="utf-8")
+def test_non_permission_failure_does_not_retry(runtime_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_runtime_log(TEST_PORT, "model endpoint 500")
 
     with pytest.raises(SystemExit):
         _run_with_scripted_drive(monkeypatch, [(None, "failed", "boom"), ("never", "completed", None)], spawned=True)
@@ -162,7 +153,6 @@ def test_completed_runs_after_first_do_not_recheck(runtime_dir: Path, monkeypatc
 @pytest.mark.skipif(sys.platform != "darwin", reason="walkthrough is macOS-only")
 def test_attach_mode_permission_failure_warns_instead_of_retrying(
     runtime_dir: Path,
-    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -170,8 +160,6 @@ def test_attach_mode_permission_failure_warns_instead_of_retrying(
     so a retry would reuse the same process and TCC grants would still not latch.
     Instead of a futile retry behind a false "restarting" message, point the user
     at the owning process."""
-    monkeypatch.setattr(launcher, "LOG_DIR", tmp_path / "no-such-dir")
-
     # A single scripted outcome: a second attempt would IndexError, failing the test.
     with pytest.raises(SystemExit):
         _run_with_scripted_drive(monkeypatch, [(None, "failed", "screen recording not permitted")], spawned=False)

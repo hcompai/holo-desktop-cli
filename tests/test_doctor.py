@@ -12,7 +12,7 @@ import json
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 
@@ -23,6 +23,8 @@ from holo_desktop.agent_client import launcher, runtime_install
 from holo_desktop.cli import bootstrap
 from holo_desktop.settings import load_holo_settings
 
+from ._runtime_stub import ProvingHandler
+
 # `holo_desktop.cli.__init__` re-exports the `doctor` command function under
 # the same name as the submodule; go through importlib to get the module.
 doctor = importlib.import_module("holo_desktop.cli.doctor")
@@ -32,19 +34,14 @@ doctor = importlib.import_module("holo_desktop.cli.doctor")
 def _fake_agent_server(version: str) -> Iterator[int]:
     body = json.dumps({"status": "ok", "version": version}).encode()
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(ProvingHandler):
+        token = "token"
+
         def do_GET(self) -> None:
-            if self.path != "/health":
-                self.send_response(404)
-                self.end_headers()
-                return
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-
-        def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
-            return
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = Thread(target=server.serve_forever, daemon=True)
@@ -59,8 +56,6 @@ def _fake_agent_server(version: str) -> Iterator[int]:
 @pytest.fixture()
 def holo_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(runtime_install, "RUNTIME_DIR", tmp_path / "runtime")
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
-    monkeypatch.setattr(launcher, "LOG_DIR", tmp_path / "logs")
     monkeypatch.setattr(customization, "SKILLS_DIR", tmp_path / "skills")
     monkeypatch.setattr(bootstrap, "USER_ENV_PATH", tmp_path / ".env")
     monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)

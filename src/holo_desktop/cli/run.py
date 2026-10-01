@@ -258,14 +258,9 @@ async def _drive(
         SpawnConfig(port=port, model=model, base_url=base_url, fake=fake, fast=fast, runs_dir=runs_dir),
         settings=settings,
     )
-    spawned = daemon.proc is not None
+    spawned = daemon.runtime.owned
     try:
-        async with AgentApiClient(
-            daemon.base_url,
-            daemon.token,
-            runtime=None if getattr(daemon, "legacy", False) else getattr(daemon, "runtime", None),
-            auto_bridges=not getattr(daemon, "legacy", False),
-        ) as client:
+        async with await AgentApiClient.connect(daemon) as client:
             session = Session()
             feed = None if quiet else LiveFeed(console, expand=expand)
 

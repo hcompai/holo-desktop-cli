@@ -149,12 +149,7 @@ class HoloExecutor(AgentExecutor):
             ),
             settings=self._settings,
         )
-        self._client = AgentApiClient(
-            self._daemon.base_url,
-            self._daemon.token,
-            runtime=None if getattr(self._daemon, "legacy", False) else getattr(self._daemon, "runtime", None),
-            auto_bridges=not getattr(self._daemon, "legacy", False),
-        )
+        self._client = await AgentApiClient.connect(self._daemon)
 
     async def shutdown(self) -> None:
         if self._client is not None:
