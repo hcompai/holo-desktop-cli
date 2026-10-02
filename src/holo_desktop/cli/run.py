@@ -21,13 +21,12 @@ if TYPE_CHECKING:
 from holo_desktop.agent_client import runtime_install
 from holo_desktop.agent_client.launcher import (
     AGENT_API_DEFAULT_PORT,
-    PORT_ENV,
     log_tail_suggests_permissions,
     port_from_env,
     text_suggests_bad_api_key,
     text_suggests_permissions,
 )
-from holo_desktop.settings import HoloSettings
+from holo_desktop.settings import PORT_ENV, HoloSettings
 
 logger = logging.getLogger(__name__)
 

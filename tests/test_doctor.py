@@ -21,7 +21,7 @@ import pytest
 from holo_desktop import customization
 from holo_desktop.agent_client import launcher, runtime_install
 from holo_desktop.cli import bootstrap
-from holo_desktop.settings import load_holo_settings
+from holo_desktop.settings import AUTH_TOKEN_ENV, PORT_ENV, load_holo_settings
 
 from ._runtime_stub import ProvingHandler
 
@@ -58,7 +58,7 @@ def holo_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(runtime_install, "RUNTIME_DIR", tmp_path / "runtime")
     monkeypatch.setattr(customization, "SKILLS_DIR", tmp_path / "skills")
     monkeypatch.setattr(bootstrap, "USER_ENV_PATH", tmp_path / ".env")
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
     monkeypatch.delenv("HAI_API_KEY", raising=False)
     monkeypatch.delenv("HAI_AGENT_RUNTIME_BASE_URL", raising=False)
     monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
@@ -94,8 +94,8 @@ def test_all_green_environment_passes(holo_home: Path, monkeypatch: pytest.Monke
     _seed_skill(holo_home)
 
     with _fake_agent_server(runtime_install.PINNED_RUNTIME_VERSION) as port:
-        monkeypatch.setenv(launcher.PORT_ENV, str(port))
-        monkeypatch.setenv(launcher.AUTH_TOKEN_ENV, "token")
+        monkeypatch.setenv(PORT_ENV, str(port))
+        monkeypatch.setenv(AUTH_TOKEN_ENV, "token")
         results = _run_checks()
 
     assert all(r.ok for r in results), [f"{r.name}: {r.detail}" for r in results if not r.ok]
@@ -103,7 +103,7 @@ def test_all_green_environment_passes(holo_home: Path, monkeypatch: pytest.Monke
 
 def test_missing_binary_fails_with_pointer(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HAI_API_KEY", "key")
-    monkeypatch.setenv(launcher.PORT_ENV, "1")  # nothing listens here
+    monkeypatch.setenv(PORT_ENV, "1")  # nothing listens here
     results = _by_name(_run_checks())
 
     binary = results["binary"]
@@ -114,14 +114,14 @@ def test_missing_binary_fails_with_pointer(holo_home: Path, monkeypatch: pytest.
 def test_binary_env_var_is_ignored(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # The removed HAI_AGENT_RUNTIME_BINARY escape hatch must not green-light the binary check.
     monkeypatch.setenv("HAI_API_KEY", "key")
-    monkeypatch.setenv(launcher.PORT_ENV, "1")
+    monkeypatch.setenv(PORT_ENV, "1")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_BINARY", "python -m hai_agent_runtime")
     assert not _by_name(_run_checks())["binary"].ok
 
 
 def test_managed_install_is_reported(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HAI_API_KEY", "key")
-    monkeypatch.setenv(launcher.PORT_ENV, "1")
+    monkeypatch.setenv(PORT_ENV, "1")
     binary = _seed_managed_install(holo_home)
 
     result = _by_name(_run_checks())["binary"]
@@ -130,7 +130,7 @@ def test_managed_install_is_reported(holo_home: Path, monkeypatch: pytest.Monkey
 
 
 def test_missing_credentials_fail_login_check(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(launcher.PORT_ENV, "1")
+    monkeypatch.setenv(PORT_ENV, "1")
     result = _by_name(_run_checks())["login"]
     assert not result.ok
     assert result.fix is not None and "holo login" in result.fix
@@ -139,16 +139,16 @@ def test_missing_credentials_fail_login_check(holo_home: Path, monkeypatch: pyte
 def test_running_server_without_token_fails_agent_api_check(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HAI_API_KEY", "key")
     with _fake_agent_server("1.2.3") as port:
-        monkeypatch.setenv(launcher.PORT_ENV, str(port))
+        monkeypatch.setenv(PORT_ENV, str(port))
         result = _by_name(_run_checks())["agent-api"]
     assert not result.ok
-    assert launcher.AUTH_TOKEN_ENV in (result.fix or "")
+    assert AUTH_TOKEN_ENV in (result.fix or "")
 
 
 def test_idle_port_is_not_a_failure(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # No server running is the normal state: every surface spawns on demand.
     monkeypatch.setenv("HAI_API_KEY", "key")
-    monkeypatch.setenv(launcher.PORT_ENV, "1")
+    monkeypatch.setenv(PORT_ENV, "1")
     result = _by_name(_run_checks())["agent-api"]
     assert result.ok
 
@@ -199,7 +199,7 @@ def test_doctor_output_omits_permissions_panel_when_healthy(
     holo_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("HAI_API_KEY", "key")
-    monkeypatch.setenv(launcher.PORT_ENV, str(PORT))
+    monkeypatch.setenv(PORT_ENV, str(PORT))
     _seed_managed_install(holo_home)
     _seed_skill(holo_home)
     runtime_install.mark_first_run_complete(runtime_install.PINNED_RUNTIME_VERSION)
@@ -209,7 +209,7 @@ def test_doctor_output_omits_permissions_panel_when_healthy(
 
 
 def test_doctor_exit_codes(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(launcher.PORT_ENV, "1")
+    monkeypatch.setenv(PORT_ENV, "1")
     with pytest.raises(SystemExit) as excinfo:
         doctor.doctor()
     assert excinfo.value.code == 1

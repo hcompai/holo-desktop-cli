@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from holo_desktop.agent_client import launcher, runtime_install
+from holo_desktop.settings import PORT_ENV
 
 run_mod = importlib.import_module("holo_desktop.cli.run")
 
@@ -81,7 +82,7 @@ def _run_with_scripted_drive(
 
     monkeypatch.setattr(run_mod, "_drive", fake_drive)
     monkeypatch.setenv("HAI_API_KEY", "key")
-    monkeypatch.setenv(launcher.PORT_ENV, str(TEST_PORT))
+    monkeypatch.setenv(PORT_ENV, str(TEST_PORT))
     monkeypatch.setenv("PATH", "/nonexistent")
     run_mod.run("do the thing", quiet=True)
     return len(calls)

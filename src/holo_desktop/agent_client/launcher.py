@@ -23,12 +23,6 @@ from holo_desktop.settings import (
     AGENT_API_DEFAULT_PORT as _AGENT_API_DEFAULT_PORT,
 )
 from holo_desktop.settings import (
-    AUTH_TOKEN_ENV as AUTH_TOKEN_ENV,
-)
-from holo_desktop.settings import (
-    PORT_ENV as PORT_ENV,
-)
-from holo_desktop.settings import (
     RUNTIME_BASE_URL_ENV,
     HoloSettings,
     load_holo_settings,

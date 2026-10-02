@@ -8,8 +8,8 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-CHALLENGE_HEADER = "X-Hai-Runtime-Challenge"
-PROOF_HEADER = "X-Hai-Runtime-Proof"
+from hai_agents_local.runtime.identity import CHALLENGE_HEADER, PROOF_HEADER
+
 SCRIPT = os.path.abspath(__file__)
 
 

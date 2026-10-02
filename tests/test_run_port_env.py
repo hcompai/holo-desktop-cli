@@ -18,8 +18,8 @@ from threading import Thread
 import pytest
 
 from holo_desktop.agent_client import launcher
-from holo_desktop.agent_client.launcher import AUTH_TOKEN_ENV, PORT_ENV
 from holo_desktop.cli.run import run
+from holo_desktop.settings import AUTH_TOKEN_ENV, PORT_ENV
 
 from ._runtime_stub import ProvingHandler
 

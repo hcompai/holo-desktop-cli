@@ -24,6 +24,7 @@ import pytest
 from hai_agents_local.runtime.state import token_file_path
 
 from holo_desktop.agent_client import launcher
+from holo_desktop.settings import AUTH_TOKEN_ENV
 
 from ._runtime_stub import SCRIPT, ProvingHandler
 
@@ -37,7 +38,7 @@ def _free_port() -> int:
 def _use_stub(monkeypatch: pytest.MonkeyPatch) -> None:
     # The binary-resolution seam: resolution itself is covered in test_runtime_install.py.
     monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, SCRIPT])
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
 
 
 async def _ensure_running(config: launcher.SpawnConfig) -> launcher.AgentDaemon:
@@ -117,7 +118,7 @@ def test_spawned_daemon_removes_its_token_file_on_close(monkeypatch: pytest.Monk
 def test_spawn_with_explicit_env_token_writes_nothing_to_disk(monkeypatch: pytest.MonkeyPatch) -> None:
     # A user-supplied secret must never silently land on disk.
     _use_stub(monkeypatch)
-    monkeypatch.setenv(launcher.AUTH_TOKEN_ENV, "user-secret")
+    monkeypatch.setenv(AUTH_TOKEN_ENV, "user-secret")
     port = _free_port()
 
     async def flow() -> None:
@@ -139,7 +140,7 @@ def _publish_token(port: int, token: str) -> Path:
 
 
 def test_attach_env_token_wins_over_token_file(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(launcher.AUTH_TOKEN_ENV, "env-token")
+    monkeypatch.setenv(AUTH_TOKEN_ENV, "env-token")
     with _fake_agent_server("env-token") as port:
         _publish_token(port, "file-token")
         daemon = asyncio.run(_ensure_running(launcher.SpawnConfig(port=port)))
@@ -148,7 +149,7 @@ def test_attach_env_token_wins_over_token_file(monkeypatch: pytest.MonkeyPatch) 
 
 def test_attaching_client_never_deletes_the_token_file(monkeypatch: pytest.MonkeyPatch) -> None:
     # Only the spawner owns the file; an attach-then-close must leave it for other clients.
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
     with _fake_agent_server("file-token") as port:
         token_file = _publish_token(port, "file-token")
 
@@ -162,9 +163,9 @@ def test_attaching_client_never_deletes_the_token_file(monkeypatch: pytest.Monke
 
 
 def test_attach_without_env_or_file_names_both_sources(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
     with _fake_agent_server("unknown") as port, pytest.raises(RuntimeError) as excinfo:
         asyncio.run(_ensure_running(launcher.SpawnConfig(port=port)))
     message = str(excinfo.value)
-    assert launcher.AUTH_TOKEN_ENV in message
+    assert AUTH_TOKEN_ENV in message
     assert str(token_file_path(port)) in message

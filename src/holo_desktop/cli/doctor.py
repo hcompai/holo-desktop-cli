@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from holo_desktop import customization
 from holo_desktop.agent_client import runtime_install
 from holo_desktop.agent_client.launcher import (
-    AUTH_TOKEN_ENV,
     log_tail_suggests_permissions,
     port_from_env,
     runtime_log_path,
@@ -19,7 +18,7 @@ from holo_desktop.agent_client.launcher import (
 from holo_desktop.cli import bootstrap
 from holo_desktop.cli.bootstrap import load_holo_env, read_user_env_key
 from holo_desktop.cli.profile import load_profile
-from holo_desktop.settings import HoloSettings, load_holo_settings
+from holo_desktop.settings import AUTH_TOKEN_ENV, HoloSettings, load_holo_settings
 
 ACCESSIBILITY_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 SCREEN_RECORDING_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"

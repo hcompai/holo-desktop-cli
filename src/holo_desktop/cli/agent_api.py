@@ -10,11 +10,10 @@ from hai_agents_local.runtime.acquire import SHARED_RECIPE
 
 from holo_desktop.agent_client.launcher import (
     AGENT_API_DEFAULT_PORT,
-    AUTH_TOKEN_ENV,
     resolve_command,
     runtime_child_env,
 )
-from holo_desktop.settings import load_holo_settings
+from holo_desktop.settings import AUTH_TOKEN_ENV, load_holo_settings
 
 
 def agent_api(

@@ -21,7 +21,8 @@ import pytest
 from hai_agents_local.runtime.manifest import PINNED_RUNTIME_VERSION
 
 from holo_desktop.agent_client import launcher
-from holo_desktop.agent_client.launcher import AUTH_TOKEN_ENV, SpawnConfig, ensure_running
+from holo_desktop.agent_client.launcher import SpawnConfig, ensure_running
+from holo_desktop.settings import AUTH_TOKEN_ENV, PORT_ENV
 
 from ._runtime_stub import ProvingHandler
 
@@ -133,11 +134,11 @@ def test_attach_with_env_model_config_succeeds(monkeypatch: pytest.MonkeyPatch) 
     # explicit CLI flags. They should not block attaching to an already-running
     # local runtime.
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
-    monkeypatch.setenv(launcher.PORT_ENV, "0")
+    monkeypatch.setenv(PORT_ENV, "0")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_MODEL", "holo3-local")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_BASE_URL", "http://127.0.0.1:8000/v1")
     with _fake_agent_server() as port:
-        monkeypatch.setenv(launcher.PORT_ENV, str(port))
+        monkeypatch.setenv(PORT_ENV, str(port))
         daemon = asyncio.run(launcher.ensure_running_from_env())
     assert not daemon.runtime.owned
     assert daemon.runtime.api_key == "test-token"
@@ -151,7 +152,7 @@ def test_attach_with_env_fast_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_FAST", "1")
     with _fake_agent_server(recipe="desktop") as port:
-        monkeypatch.setenv(launcher.PORT_ENV, str(port))
+        monkeypatch.setenv(PORT_ENV, str(port))
         daemon = asyncio.run(launcher.ensure_running_from_env())
     assert not daemon.runtime.owned
     assert daemon.runtime.base_url == f"http://127.0.0.1:{port}"

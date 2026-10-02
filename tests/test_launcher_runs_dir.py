@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from holo_desktop.agent_client import launcher
+from holo_desktop.settings import AUTH_TOKEN_ENV
 
 from ._runtime_stub import SCRIPT as STUB_SCRIPT
 
@@ -48,7 +49,7 @@ def _use_stub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # The binary-resolution seam: resolution itself is covered in test_runtime_install.py.
     monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, str(script), STUB_SCRIPT])
     monkeypatch.setenv("STUB_ENV_DUMP", str(dump_path))
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
     return dump_path
 
 

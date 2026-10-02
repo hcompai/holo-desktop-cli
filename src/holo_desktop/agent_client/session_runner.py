@@ -10,7 +10,6 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
-import httpx
 from agent_interface.specs.session import SessionRequest
 from agp_types import TrajectoryEvent, TrajectoryStatus
 from hai_agents.core.api_error import ApiError
@@ -281,9 +280,8 @@ async def _create_or_continue(
         try:
             await client.send_message(session.session_id, text)
             return session.session_id
-        except (httpx.HTTPStatusError, ApiError) as exc:
-            code = exc.status_code if isinstance(exc, ApiError) else exc.response.status_code
-            if code not in _DEAD_SESSION_CODES:
+        except ApiError as exc:
+            if exc.status_code not in _DEAD_SESSION_CODES:
                 raise
             session.reset()
     request = build_session_request(
