@@ -153,56 +153,46 @@ def test_idle_port_is_not_a_failure(holo_home: Path, monkeypatch: pytest.MonkeyP
     assert result.ok
 
 
-PORT = 23498  # pinned: the log file `permissions_guidance_needed` inspects is keyed by port
+PORT = 23498  # pinned: the runtime log `permissions_guidance` inspects is keyed by port
+
+
+@pytest.fixture()
+def missing_grants(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Grants this process lacks, as the doctor sees them; empty means fully granted."""
+    missing: list[str] = []
+    monkeypatch.setattr(doctor, "missing_macos_grants", lambda: missing)
+    return missing
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="TCC guidance is macOS-only")
-def test_permissions_guidance_shown_while_managed_first_run_pending(holo_home: Path) -> None:
-    # No first-run marker and no `hai-agent-runtime` on PATH: grants were almost certainly never given.
-    assert doctor.permissions_guidance_needed(PORT)
+def test_permissions_guidance_names_grants_this_process_lacks(holo_home: Path, missing_grants: list[str]) -> None:
+    missing_grants.append("Screen Recording")
+    guidance = doctor.permissions_guidance(PORT)
+    assert guidance is not None and "Screen Recording" in guidance and "--fast" not in guidance
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="TCC guidance is macOS-only")
-def test_permissions_guidance_hidden_after_first_run_completes(holo_home: Path) -> None:
-    runtime_install.mark_first_run_complete(runtime_install.PINNED_RUNTIME_VERSION)
-    assert not doctor.permissions_guidance_needed(PORT)
-
-
-@pytest.mark.skipif(sys.platform != "darwin", reason="TCC guidance is macOS-only")
-def test_permissions_guidance_reappears_on_permission_shaped_log(holo_home: Path) -> None:
-    runtime_install.mark_first_run_complete(runtime_install.PINNED_RUNTIME_VERSION)
+def test_permissions_guidance_flags_runtime_denial_from_its_log(holo_home: Path, missing_grants: list[str]) -> None:
     log_dir = launcher.runtime_log_path(PORT).parent
     log_dir.mkdir(parents=True)
     (log_dir / f"hai-agent-runtime-{PORT}.log").write_text("screen recording denied by TCC\n", encoding="utf-8")
-    assert doctor.permissions_guidance_needed(PORT)
-
-
-@pytest.mark.skipif(sys.platform != "darwin", reason="TCC guidance is macOS-only")
-def test_permissions_guidance_hidden_for_path_binary(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # A dev binary on PATH never gets a first-run marker; without this gate the panel would show forever.
-    bin_dir = holo_home / "bin"
-    bin_dir.mkdir()
-    binary = bin_dir / "hai-agent-runtime"
-    binary.write_bytes(b"#!/bin/sh\n")
-    binary.chmod(0o755)
-    monkeypatch.setenv("PATH", str(bin_dir))
-    assert not doctor.permissions_guidance_needed(PORT)
+    guidance = doctor.permissions_guidance(PORT)
+    assert guidance is not None and "--fast" in guidance
 
 
 @pytest.mark.skipif(sys.platform == "darwin", reason="covers the non-macOS branch")
 def test_permissions_guidance_never_shown_off_macos(holo_home: Path) -> None:
-    assert not doctor.permissions_guidance_needed(PORT)
+    assert doctor.permissions_guidance(PORT) is None
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="TCC guidance is macOS-only")
-def test_doctor_output_omits_permissions_panel_when_healthy(
-    holo_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_doctor_output_omits_permissions_panel_when_granted(
+    holo_home: Path, missing_grants: list[str], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("HAI_API_KEY", "key")
     monkeypatch.setenv(PORT_ENV, str(PORT))
     _seed_managed_install(holo_home)
     _seed_skill(holo_home)
-    runtime_install.mark_first_run_complete(runtime_install.PINNED_RUNTIME_VERSION)
 
     doctor.doctor()
     assert "macOS permissions" not in capsys.readouterr().out

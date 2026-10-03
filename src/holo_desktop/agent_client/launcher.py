@@ -44,6 +44,11 @@ LEGACY_STATE_DIR = Path.home() / ".holo"
 DESKTOP_RECIPE = "desktop"
 
 
+def recipe_for(*, fast: bool) -> str:
+    """The runtime recipe a run uses; only the shared recipe drives the device from this process."""
+    return DESKTOP_RECIPE if fast else SHARED_RECIPE
+
+
 def apply_hosted_gateway_default(env: dict[str, str]) -> None:
     """Default hosted runtime calls to the production gateway unless the caller chose another gateway."""
     if not env.get(MODELS_API_BASE_URL_ENV, "").strip():
@@ -198,7 +203,7 @@ async def ensure_running(config: SpawnConfig, *, settings: HoloSettings) -> Agen
             f"An agent server is already running at {server_url}; explicit launch flags {' '.join(requested)} would be ignored. "
             "Stop it or choose another --port."
         )
-    recipe = DESKTOP_RECIPE if config.fast else SHARED_RECIPE
+    recipe = recipe_for(fast=config.fast)
     extra = {"HAI_AGENT_RUNTIME_RECIPE": recipe}
     if config.fast:
         extra["HAI_AGENT_RUNTIME_FAST"] = "1"

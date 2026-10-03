@@ -1,8 +1,8 @@
 """Behavioural tests for the macOS first-run permission walkthrough in `holo run`.
 
-TCC grants only latch after the runtime restarts, so the first task against a
-freshly installed managed runtime that fails with a permission-shaped error
-must be retried exactly once with a fresh runtime process.
+On the desktop recipe TCC grants only latch after the runtime restarts, so the
+first task against a freshly installed managed runtime that fails with a
+permission-shaped error must be retried exactly once with a fresh runtime process.
 """
 
 from __future__ import annotations
@@ -65,26 +65,31 @@ TEST_PORT = 23499
 
 def _run_with_scripted_drive(
     monkeypatch: pytest.MonkeyPatch,
-    outcomes: list[tuple[str | None, str | None, str | None]],
+    outcomes: list[tuple[str | None, str | None, str | None] | Exception],
     spawned: bool,
+    fast: bool = True,
 ) -> int:
     """Drive `run()` with a scripted `_drive`; returns how many attempts were made.
 
     `spawned` mirrors what `ensure_running` reports: True when this process owns
     the runtime, False when it attached to one started by another Holo surface.
+    `fast` selects the desktop recipe, the only one whose runtime holds the TCC grants.
     """
     calls: list[object] = []
 
     async def fake_drive(**kwargs: object) -> tuple[str | None, str | None, str | None, bool]:
         calls.append(kwargs)
-        answer, status, error = outcomes[len(calls) - 1]
+        outcome = outcomes[len(calls) - 1]
+        if isinstance(outcome, Exception):
+            raise outcome
+        answer, status, error = outcome
         return answer, status, error, spawned
 
     monkeypatch.setattr(run_mod, "_drive", fake_drive)
     monkeypatch.setenv("HAI_API_KEY", "key")
     monkeypatch.setenv(PORT_ENV, str(TEST_PORT))
     monkeypatch.setenv("PATH", "/nonexistent")
-    run_mod.run("do the thing", quiet=True)
+    run_mod.run("do the thing", quiet=True, fast=fast)
     return len(calls)
 
 
@@ -172,3 +177,28 @@ def test_attach_mode_permission_failure_warns_instead_of_retrying(
     assert runtime_install.first_run_pending(runtime_install.PINNED_RUNTIME_VERSION), (
         "a failed attach-mode first run must stay pending"
     )
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="walkthrough is macOS-only")
+def test_shared_recipe_never_restarts_the_runtime_for_grants(
+    runtime_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The shared recipe drives the desktop from this process, so a runtime restart cannot latch its grants."""
+    _write_runtime_log(TEST_PORT, "accessibility not granted")
+
+    with pytest.raises(SystemExit):
+        _run_with_scripted_drive(
+            monkeypatch, [(None, "failed", "screen recording not permitted")], spawned=True, fast=False
+        )
+
+    assert "restarting the runtime" not in capsys.readouterr().err
+
+
+def test_preflight_permission_error_exits_with_its_guidance(
+    runtime_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _run_with_scripted_drive(monkeypatch, [PermissionError("grant your terminal")], spawned=True, fast=False)
+
+    assert exc.value.code == 1
+    assert "grant your terminal" in capsys.readouterr().err

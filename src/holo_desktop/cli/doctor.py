@@ -5,6 +5,7 @@ from __future__ import annotations
 import platform
 import shutil
 
+from hai_agents_local.desktop import ACCESSIBILITY_SETTINGS_URL, SCREEN_RECORDING_SETTINGS_URL
 from hai_agents_local.runtime import LocalRuntime, LocalRuntimeError
 from pydantic import BaseModel
 
@@ -19,9 +20,6 @@ from holo_desktop.cli import bootstrap
 from holo_desktop.cli.bootstrap import load_holo_env, read_user_env_key
 from holo_desktop.cli.profile import load_profile
 from holo_desktop.settings import AUTH_TOKEN_ENV, HoloSettings, load_holo_settings
-
-ACCESSIBILITY_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-SCREEN_RECORDING_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
 
 
 class CheckResult(BaseModel):
@@ -100,16 +98,37 @@ def check_holo_dir(settings: HoloSettings) -> CheckResult:
     return CheckResult(name="holo-dir", ok=True, detail=f"{len(skills)} skill(s) seeded{log_note}")
 
 
-def permissions_guidance_needed(port: int) -> bool:
-    """macOS only: True when TCC grants are the likely culprit (heuristic; can't query another binary's grants)."""
+def missing_macos_grants() -> list[str]:
+    """macOS grants this process lacks; non-prompting, so the doctor stays read-only."""
+    from ApplicationServices import AXIsProcessTrusted
+    from Quartz import CGPreflightScreenCaptureAccess
+
+    missing = []
+    if not AXIsProcessTrusted():
+        missing.append("Accessibility")
+    if not CGPreflightScreenCaptureAccess():
+        missing.append("Screen Recording")
+    return missing
+
+
+def permissions_guidance(port: int) -> str | None:
+    """macOS grants to fix, or None: this process's own, plus the runtime's when its log shows a denial."""
     # platform.system() not sys.platform: mypy narrows the latter and flags this unreachable on Linux CI.
     if platform.system() != "Darwin":
-        return False
-    # A PATH binary (dev setup) never gets a first-run marker, so only the managed install counts as pending.
-    managed_first_run_pending = shutil.which("hai-agent-runtime") is None and runtime_install.first_run_pending(
-        runtime_install.PINNED_RUNTIME_VERSION
-    )
-    return managed_first_run_pending or log_tail_suggests_permissions(port)
+        return None
+    lines = []
+    missing = missing_macos_grants()
+    if missing:
+        lines.append(
+            f"This terminal lacks [bold]{' and '.join(missing)}[/bold]. Holo drives the desktop from the app "
+            "that runs it (this terminal, or your MCP/ACP host): grant that app, then restart it."
+        )
+    if log_tail_suggests_permissions(port):
+        lines.append(
+            "The runtime log shows a permission denial from a [cyan]--fast[/cyan] run, which drives the "
+            "desktop from the runtime: grant the runtime too, then restart it."
+        )
+    return "\n".join(lines) or None
 
 
 def run_checks(settings: HoloSettings) -> list[CheckResult]:
@@ -132,15 +151,13 @@ def doctor() -> None:
         if result.fix is not None:
             out.print(f"  [dim]fix:[/dim] {result.fix}")
 
-    if permissions_guidance_needed(port_from_env(settings=settings)):
+    guidance = permissions_guidance(port_from_env(settings=settings))
+    if guidance is not None:
         out.print(
             Panel(
-                "macOS cannot be queried for another app's grants, so verify manually that the runtime "
-                "has [bold]Accessibility[/bold] and [bold]Screen Recording[/bold] under "
-                "System Settings → Privacy & Security:\n"
+                f"{guidance}\nGrant under System Settings → Privacy & Security:\n"
                 f"  • [link={ACCESSIBILITY_SETTINGS_URL}]Open Accessibility settings[/link]\n"
-                f"  • [link={SCREEN_RECORDING_SETTINGS_URL}]Open Screen Recording settings[/link]\n"
-                "After granting, the runtime must restart once for the grants to take effect.",
+                f"  • [link={SCREEN_RECORDING_SETTINGS_URL}]Open Screen Recording settings[/link]",
                 title="[bold]macOS permissions[/bold]",
                 title_align="left",
                 border_style="dim",

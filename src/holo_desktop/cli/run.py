@@ -21,8 +21,10 @@ if TYPE_CHECKING:
 from holo_desktop.agent_client import runtime_install
 from holo_desktop.agent_client.launcher import (
     AGENT_API_DEFAULT_PORT,
+    DESKTOP_RECIPE,
     log_tail_suggests_permissions,
     port_from_env,
+    recipe_for,
     text_suggests_bad_api_key,
     text_suggests_permissions,
 )
@@ -104,10 +106,12 @@ def run(
         )
         raise SystemExit(1)
 
-    # First task against a freshly downloaded runtime on macOS: TCC prompts appear, grants latch only after restart.
+    # Desktop recipe only: the runtime drives the device, so its TCC grants latch after it restarts.
+    # The shared recipe drives it from this process, whose SDK preflight raises PermissionError instead.
     walkthrough_pending = (
         sys.platform == "darwin"
         and not fake
+        and recipe_for(fast=fast) == DESKTOP_RECIPE
         and shutil.which("hai-agent-runtime") is None
         and runtime_install.first_run_pending(runtime_install.PINNED_RUNTIME_VERSION)
     )
@@ -178,6 +182,9 @@ def run(
                     "holo mcp). Restart that process so the grants latch, or pass --port to spawn a fresh "
                     "runtime here.[/dim]"
                 )
+    except PermissionError as exc:
+        die("permission denied", str(exc))
+        return
     except (RuntimeError, httpx.HTTPError, ApiError) as exc:
         die(type(exc).__name__, str(exc))
         return
