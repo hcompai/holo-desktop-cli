@@ -252,14 +252,15 @@ class HoloExecutor(AgentExecutor):
                 idle_timeout_s=DEFAULT_INTERACTIVE_IDLE_TIMEOUT_S,
                 on_event=forward,
             )
-        except (httpx.HTTPError, ApiError):
+        except (httpx.HTTPError, ApiError, PermissionError) as exc:
             logger.warning("agent-API call failed for task %s", task_id, exc_info=True)
+            message = str(exc) if isinstance(exc, PermissionError) else "agent backend error"
             await event_queue.enqueue_event(
                 status_event(
                     task_id,
                     context_id,
                     TaskState.TASK_STATE_FAILED,
-                    new_text_message("agent backend error", role=Role.ROLE_AGENT, context_id=context_id),
+                    new_text_message(message, role=Role.ROLE_AGENT, context_id=context_id),
                 )
             )
             return
