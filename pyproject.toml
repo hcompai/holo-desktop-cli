@@ -81,7 +81,7 @@ members = ["examples/expense_report"]
 
 # TEMPORARY: unreleased SDK local runtime. Replace with a hai-agents release floor before merging.
 [tool.uv.sources]
-hai-agents = { url = "https://github.com/hcompai/hai-agents-python/archive/a42b972ab5b3ed923d475d91b1a3d9244151606c.tar.gz" }
+hai-agents = { url = "https://github.com/hcompai/hai-agents-python/archive/f4659fd142b236caefaf8310a1c69f6dd4fdcc6a.tar.gz" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/holo_desktop"]
