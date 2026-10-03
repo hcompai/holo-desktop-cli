@@ -15,18 +15,27 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+from typing import ClassVar
 
 import pytest
+from hai_agents_local.runtime.manifest import PINNED_RUNTIME_VERSION
 
 from holo_desktop.agent_client import launcher
-from holo_desktop.agent_client.launcher import AUTH_TOKEN_ENV, SpawnConfig, ensure_running
-from holo_desktop.agent_client.runtime_install import PINNED_RUNTIME_VERSION
+from holo_desktop.agent_client.launcher import SpawnConfig, ensure_running
+from holo_desktop.settings import AUTH_TOKEN_ENV, PORT_ENV
+
+from ._runtime_stub import ProvingHandler
 
 
-class _HealthHandler(BaseHTTPRequestHandler):
+class _HealthHandler(ProvingHandler):
+    token = "test-token"
     health_body: bytes = b""
 
     def do_GET(self) -> None:
+        if self.path.startswith("/api/v2/sessions"):
+            self.send_response(200 if self.headers.get("Authorization") == "Bearer test-token" else 401)
+            self.end_headers()
+            return
         if self.path != "/health":
             self.send_response(404)
             self.end_headers()
@@ -36,13 +45,29 @@ class _HealthHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(self.health_body)
 
+
+class _SquatterHandler(BaseHTTPRequestHandler):
+    """Answers like a healthy runtime but cannot prove it holds the token."""
+
+    authorizations: ClassVar[list[str | None]] = []
+
+    def do_GET(self) -> None:
+        self.authorizations.append(self.headers.get("Authorization"))
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok","recipe":"shared"}')
+
     def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
         return
 
 
 @contextmanager
-def _fake_agent_server(*, health_body: bytes = b"") -> Iterator[int]:
-    handler = type("Handler", (_HealthHandler,), {"health_body": health_body})
+def _fake_agent_server(
+    *, health_body: bytes = b"", recipe: str = "shared", base: type[BaseHTTPRequestHandler] = _HealthHandler
+) -> Iterator[int]:
+    payload = json.loads(health_body) if health_body else {}
+    payload["recipe"] = recipe
+    handler = type("Handler", (base,), {"health_body": json.dumps(payload).encode()})
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -61,9 +86,19 @@ def test_attach_without_flags_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
     with _fake_agent_server() as port:
         daemon = asyncio.run(_ensure_running(SpawnConfig(port=port)))
-    assert daemon.proc is None
-    assert daemon.token == "test-token"
-    assert daemon.base_url == f"http://127.0.0.1:{port}"
+    assert not daemon.runtime.owned
+    assert daemon.runtime.api_key == "test-token"
+    assert daemon.runtime.base_url == f"http://127.0.0.1:{port}"
+
+
+def test_attach_refuses_a_server_that_cannot_prove_it_is_the_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A process squatting the port must fail closed and never receive the bearer token.
+    monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
+    _SquatterHandler.authorizations = []
+    with _fake_agent_server(base=_SquatterHandler) as port, pytest.raises(RuntimeError, match="did not prove"):
+        asyncio.run(_ensure_running(SpawnConfig(port=port)))
+    assert _SquatterHandler.authorizations
+    assert not any(_SquatterHandler.authorizations)
 
 
 @pytest.mark.parametrize(
@@ -99,15 +134,15 @@ def test_attach_with_env_model_config_succeeds(monkeypatch: pytest.MonkeyPatch) 
     # explicit CLI flags. They should not block attaching to an already-running
     # local runtime.
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
-    monkeypatch.setenv(launcher.PORT_ENV, "0")
+    monkeypatch.setenv(PORT_ENV, "0")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_MODEL", "holo3-local")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_BASE_URL", "http://127.0.0.1:8000/v1")
     with _fake_agent_server() as port:
-        monkeypatch.setenv(launcher.PORT_ENV, str(port))
+        monkeypatch.setenv(PORT_ENV, str(port))
         daemon = asyncio.run(launcher.ensure_running_from_env())
-    assert daemon.proc is None
-    assert daemon.token == "test-token"
-    assert daemon.base_url == f"http://127.0.0.1:{port}"
+    assert not daemon.runtime.owned
+    assert daemon.runtime.api_key == "test-token"
+    assert daemon.runtime.base_url == f"http://127.0.0.1:{port}"
 
 
 def test_attach_with_env_fast_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,11 +151,11 @@ def test_attach_with_env_fast_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     # they must not block attaching to an already-running local runtime.
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
     monkeypatch.setenv("HAI_AGENT_RUNTIME_FAST", "1")
-    with _fake_agent_server() as port:
-        monkeypatch.setenv(launcher.PORT_ENV, str(port))
+    with _fake_agent_server(recipe="desktop") as port:
+        monkeypatch.setenv(PORT_ENV, str(port))
         daemon = asyncio.run(launcher.ensure_running_from_env())
-    assert daemon.proc is None
-    assert daemon.base_url == f"http://127.0.0.1:{port}"
+    assert not daemon.runtime.owned
+    assert daemon.runtime.base_url == f"http://127.0.0.1:{port}"
 
 
 def test_attach_with_cli_fast_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -152,10 +187,9 @@ def test_attach_error_names_the_rejected_flags(monkeypatch: pytest.MonkeyPatch) 
     assert "--port" in message  # the error must point at a way out
 
 
-def test_attach_without_token_still_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_attach_without_token_still_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     # Pre-existing contract: attaching with no env token and no token file is an error.
     monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
     with _fake_agent_server() as port, pytest.raises(RuntimeError, match=AUTH_TOKEN_ENV):
         asyncio.run(_ensure_running(SpawnConfig(port=port)))
 
@@ -167,7 +201,7 @@ def test_attach_captures_runtime_version_and_warns_on_mismatch(
     body = json.dumps({"status": "ok", "version": "999.0.0"}).encode()
     with _fake_agent_server(health_body=body) as port, caplog.at_level(logging.WARNING):
         daemon = asyncio.run(_ensure_running(SpawnConfig(port=port)))
-    assert daemon.runtime_version == "999.0.0"
+    assert daemon.runtime.version == "999.0.0"
     warning = next(r for r in caplog.records if r.levelno == logging.WARNING)
     assert "999.0.0" in warning.getMessage()
     assert PINNED_RUNTIME_VERSION in warning.getMessage()
@@ -180,7 +214,7 @@ def test_attach_with_matching_version_does_not_warn(
     body = json.dumps({"status": "ok", "version": PINNED_RUNTIME_VERSION}).encode()
     with _fake_agent_server(health_body=body) as port, caplog.at_level(logging.WARNING):
         daemon = asyncio.run(_ensure_running(SpawnConfig(port=port)))
-    assert daemon.runtime_version == PINNED_RUNTIME_VERSION
+    assert daemon.runtime.version == PINNED_RUNTIME_VERSION
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
@@ -189,7 +223,7 @@ def test_attach_tolerates_versionless_health_body(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv(AUTH_TOKEN_ENV, "test-token")
     with _fake_agent_server() as port:
         daemon = asyncio.run(_ensure_running(SpawnConfig(port=port)))
-    assert daemon.runtime_version is None
+    assert daemon.runtime.version is None
 
 
 def test_runtime_child_env_keeps_portal_key_without_base_url(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -22,9 +22,10 @@ def stop(
     ] = None,
 ) -> None:
     """Ask any in-flight Holo turn to pause then cancel (the same effect as the double-Esc kill switch)."""
+    from hai_agents_local.runtime.process import kill_process_group
     from rich.console import Console
 
-    from holo_desktop.agent_client.launcher import discover_runtime_pids, kill_runtime_by_pid
+    from holo_desktop.agent_client.launcher import discover_runtime_pids
     from holo_desktop.killswitch.channel import request_stop
 
     out = Console(stderr=True)
@@ -34,7 +35,7 @@ def stop(
     if not force:
         return
 
-    killed = [pid for pid in discover_runtime_pids(port) if kill_runtime_by_pid(pid)]
+    killed = [pid for pid in discover_runtime_pids(port) if kill_process_group(pid)]
     if killed:
         out.print(f"[red]✗ force-killed runtime[/red] [dim]pid(s) {', '.join(map(str, killed))}[/dim]")
     else:

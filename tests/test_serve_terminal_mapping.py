@@ -63,6 +63,22 @@ def test_idle_turn_with_answer_completes_a2a_task(monkeypatch) -> None:
     assert final.status.message.parts[0].text == "all done"
 
 
+def test_missing_desktop_grants_fail_the_task_with_their_guidance(monkeypatch) -> None:
+    async def fake_run_turn(*args: Any, **kwargs: Any) -> TurnOutcome:
+        raise PermissionError("grant the app that runs holo")
+
+    monkeypatch.setattr(serve_mod, "run_turn", fake_run_turn)
+    executor = serve_mod.HoloExecutor(model=None, base_url=None, fake=False, settings=load_holo_settings())
+    executor._client = object()  # type: ignore[assignment]
+    queue = RecordingQueue()
+
+    asyncio.run(executor._run_and_stream(Session(), "do it", "task-1", "ctx-1", queue, metadata=None))  # type: ignore[arg-type]
+
+    final = queue.events[-1]
+    assert final.status.state == TaskState.TASK_STATE_FAILED
+    assert final.status.message.parts[0].text == "grant the app that runs holo"
+
+
 @dataclass
 class FakeTask:
     id: str

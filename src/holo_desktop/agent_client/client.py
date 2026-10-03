@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from types import TracebackType
+from typing import TYPE_CHECKING
 
-import httpx
-from agent_interface.definition import UserMessageEvent
 from agent_interface.specs.session import SessionRequest, SessionStatus
 from agp_types import TrajectoryChanges, TrajectoryEvent, TrajectoryStatus
+from hai_agents import AsyncClient
+from hai_agents.base_client import AsyncBaseClient
+from hai_agents.sessions import SendSessionMessagesRequestBody_UserMessage
+from hai_agents.sessions.client import AsyncSessionsClient
+from hai_agents_local.runtime.acquire import SHARED_RECIPE
+
+if TYPE_CHECKING:
+    from holo_desktop.agent_client.launcher import AgentDaemon
 
 logger = logging.getLogger(__name__)
 
-API_PREFIX = "/api/v2"
 # Long-poll window per request; modest to stay under the server's cap and keep Ctrl+C responsive.
 POLL_WAIT_S = 10
 
@@ -35,14 +41,23 @@ def _coerce_status(payload: object) -> object:
 
 
 class AgentApiClient:
-    """Authenticated async client bound to one agent-API base URL."""
+    """Async agent-API sessions client bound to one local runtime."""
 
-    def __init__(self, base_url: str, token: str, *, timeout: float = 60.0) -> None:
-        self._http = httpx.AsyncClient(
-            base_url=f"{base_url}{API_PREFIX}",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=httpx.Timeout(timeout, connect=5.0),
-        )
+    def __init__(self, sessions: AsyncSessionsClient, close: Callable[[], Awaitable[None]]) -> None:
+        self._sessions = sessions
+        self._close = close
+
+    @classmethod
+    async def connect(cls, daemon: AgentDaemon) -> AgentApiClient:
+        """A client that rejects any response not proven by ``daemon``'s runtime."""
+        runtime = daemon.runtime
+        if daemon.recipe == SHARED_RECIPE:
+            sdk = await AsyncClient.local(runtime=runtime, auto_bridges=daemon.auto_bridges)
+            return cls(sdk.sessions, sdk.aclose)
+        # Other recipes drive the device in-process: plain sessions, no SDK device bridges.
+        http = runtime.async_http_client()
+        base = AsyncBaseClient(base_url=runtime.base_url, api_key=runtime.api_key, httpx_client=http)
+        return cls(base.sessions, http.aclose)
 
     async def __aenter__(self) -> AgentApiClient:
         return self
@@ -56,48 +71,44 @@ class AgentApiClient:
         await self.aclose()
 
     async def aclose(self) -> None:
-        await self._http.aclose()
+        await self._close()
 
     async def create_session(self, request: SessionRequest) -> str:
         """Create a session and return its id."""
-        resp = await self._http.post("/sessions", json=request.model_dump(mode="json", exclude_none=True))
-        resp.raise_for_status()
-        return str(resp.json()["id"])
+        session = await self._sessions.create_session(**request.model_dump(mode="json", exclude_none=True))
+        return str(session.id)
 
     async def get_changes(
         self, session_id: str, from_index: int, *, wait_for_seconds: int, include_events: bool
     ) -> TrajectoryChanges | None:
         """One long-poll for changes since ``from_index``; ``None`` when nothing arrived (204)."""
-        resp = await self._http.get(
-            f"/sessions/{session_id}/changes",
-            params={"from_index": from_index, "wait_for_seconds": wait_for_seconds, "include_events": include_events},
+        changes = await self._sessions.get_session_changes(
+            session_id,
+            from_index=from_index,
+            wait_for_seconds=wait_for_seconds,
+            include_events=include_events,
         )
-        if resp.status_code == 204:
-            return None
-        resp.raise_for_status()
-        return TrajectoryChanges.model_validate(_coerce_status(resp.json()))
+        return (
+            None
+            if changes is None
+            else TrajectoryChanges.model_validate(_coerce_status(changes.model_dump(mode="json")))
+        )
 
     async def get_status(self, session_id: str) -> SessionStatus:
         """Live session status; authoritative for terminal detection (``/changes`` 204s past the tail)."""
-        resp = await self._http.get(f"/sessions/{session_id}/status")
-        resp.raise_for_status()
-        return SessionStatus.model_validate(_coerce_status(resp.json()))
+        status = await self._sessions.get_session_status(session_id)
+        return SessionStatus.model_validate(_coerce_status(status.model_dump(mode="json")))
 
     async def send_message(self, session_id: str, text: str) -> None:
-        # Body is a server-side tagged union, so the typed model's "type" discriminator is required.
-        body = UserMessageEvent(message=text).model_dump(mode="json")
-        resp = await self._http.post(f"/sessions/{session_id}/messages", json=body)
-        resp.raise_for_status()
+        await self._sessions.send_session_messages(
+            session_id, request=SendSessionMessagesRequestBody_UserMessage(message=text)
+        )
 
     async def pause(self, session_id: str) -> None:
-        """Freeze the agent after its current step; pairs with cancel for a responsive stop."""
-        resp = await self._http.post(f"/sessions/{session_id}/pause")
-        resp.raise_for_status()
+        await self._sessions.pause_session(session_id)
 
     async def cancel(self, session_id: str) -> None:
-        resp = await self._http.delete(f"/sessions/{session_id}")
-        if resp.status_code not in (200, 204):
-            resp.raise_for_status()
+        await self._sessions.cancel_session(session_id)
 
     def stream(self, session_id: str, *, from_index: int = 0) -> SessionStream:
         return SessionStream(self, session_id, from_index=from_index)

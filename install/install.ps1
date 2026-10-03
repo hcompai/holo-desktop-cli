@@ -134,7 +134,10 @@ try {
                 Fail "sha256 mismatch for Windows ARM64 dependency '$DependencyName': expected $DependencySha256, got $ActualDependencySha256"
             }
         }
-        $BinaryDependencyArgs = @("--find-links", $WheelDirectory, "--no-build")
+        $BinaryDependencyArgs = @("--find-links", $WheelDirectory)
+        foreach ($Dependency in $Dependencies) {
+            $BinaryDependencyArgs += @("--no-build-package", [string]$Dependency.name)
+        }
     }
 
     & $UvExe tool install $PackageSpec --python $PythonExe --force --reinstall-package holo-desktop-cli @BinaryDependencyArgs

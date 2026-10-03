@@ -16,6 +16,7 @@ import httpx
 import pytest
 from agent_interface.specs.session import SessionRequest
 from agp_types import TrajectoryEvent, TrajectoryStatus
+from hai_agents.core.api_error import ApiError
 
 from holo_desktop.agent_client.session_runner import Session, run_turn
 
@@ -26,9 +27,8 @@ def _event(kind: str, **data: object) -> TrajectoryEvent:
     return TrajectoryEvent(type="AgentEvent", data={"kind": kind, **data}, timestamp=datetime.now(UTC))
 
 
-def _http_status_error(code: int) -> httpx.HTTPStatusError:
-    request = httpx.Request("POST", "http://runtime.local")
-    return httpx.HTTPStatusError("dead", request=request, response=httpx.Response(code, request=request))
+def _api_error(code: int) -> ApiError:
+    return ApiError(status_code=code, body="dead")
 
 
 @dataclass
@@ -67,7 +67,7 @@ class FakeApiClient:
         if self.cancel_on_send:
             raise asyncio.CancelledError
         if self.send_status_error is not None:
-            raise _http_status_error(self.send_status_error)
+            raise _api_error(self.send_status_error)
         self.sent.append((session_id, text))
 
     def stream(self, session_id: str, *, from_index: int = 0) -> FakeStream:

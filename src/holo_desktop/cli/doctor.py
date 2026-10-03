@@ -2,29 +2,24 @@
 
 from __future__ import annotations
 
-import asyncio
 import platform
 import shutil
 
+from hai_agents_local.desktop import ACCESSIBILITY_SETTINGS_URL, SCREEN_RECORDING_SETTINGS_URL
+from hai_agents_local.runtime import LocalRuntime, LocalRuntimeError
 from pydantic import BaseModel
 
 from holo_desktop import customization
-from holo_desktop.agent_client import launcher, runtime_install
+from holo_desktop.agent_client import runtime_install
 from holo_desktop.agent_client.launcher import (
-    AUTH_TOKEN_ENV,
-    LOOPBACK_HOST,
     log_tail_suggests_permissions,
     port_from_env,
-    probe_health,
-    token_file_path,
+    runtime_log_path,
 )
 from holo_desktop.cli import bootstrap
 from holo_desktop.cli.bootstrap import load_holo_env, read_user_env_key
 from holo_desktop.cli.profile import load_profile
-from holo_desktop.settings import HoloSettings, load_holo_settings
-
-ACCESSIBILITY_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-SCREEN_RECORDING_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+from holo_desktop.settings import AUTH_TOKEN_ENV, HoloSettings, load_holo_settings
 
 
 class CheckResult(BaseModel):
@@ -71,26 +66,27 @@ def check_login(settings: HoloSettings) -> CheckResult:
 
 def check_agent_api(settings: HoloSettings) -> CheckResult:
     port = port_from_env(settings=settings)
-    probe = asyncio.run(probe_health(f"http://{LOOPBACK_HOST}:{port}"))
-    if probe is None:
-        return CheckResult(name="agent-api", ok=True, detail=f"no server on port {port} (spawns on demand)")
-    version = probe.version or "unknown version"
-    if version != runtime_install.PINNED_RUNTIME_VERSION and probe.version is not None:
-        version = f"{version} (client pins {runtime_install.PINNED_RUNTIME_VERSION})"
-    has_token = bool(settings.runtime.api_token) or token_file_path(port).is_file()
-    if not has_token:
+    try:
+        runtime = LocalRuntime.attach(port=port)
+    except LocalRuntimeError as exc:
         return CheckResult(
             name="agent-api",
             ok=False,
-            detail=f"server running on port {port} ({version}) but no credentials to attach",
+            detail=f"server on port {port} cannot be attached: {exc}",
             fix=f"export {AUTH_TOKEN_ENV}, or stop that server so holo can spawn its own",
         )
-    return CheckResult(name="agent-api", ok=True, detail=f"server running on port {port} ({version}), token available")
+    if runtime is None:
+        return CheckResult(name="agent-api", ok=True, detail=f"no server on port {port} (spawns on demand)")
+    version = runtime.version or "unknown version"
+    if runtime.version is not None and runtime.version != runtime_install.PINNED_RUNTIME_VERSION:
+        version = f"{version} (client pins {runtime_install.PINNED_RUNTIME_VERSION})"
+    return CheckResult(name="agent-api", ok=True, detail=f"server running on port {port} ({version}), token verified")
 
 
-def check_holo_dir() -> CheckResult:
+def check_holo_dir(settings: HoloSettings) -> CheckResult:
     skills = sorted(customization.SKILLS_DIR.glob("*/SKILL.md"))
-    logs = sorted(launcher.LOG_DIR.glob("hai-agent-runtime-*.log")) if launcher.LOG_DIR.is_dir() else []
+    log_dir = runtime_log_path(port_from_env(settings=settings)).parent
+    logs = sorted(log_dir.glob("hai-agent-runtime-*.log")) if log_dir.is_dir() else []
     log_note = f"; latest runtime log: {logs[-1]}" if logs else ""
     if not skills:
         return CheckResult(
@@ -102,20 +98,41 @@ def check_holo_dir() -> CheckResult:
     return CheckResult(name="holo-dir", ok=True, detail=f"{len(skills)} skill(s) seeded{log_note}")
 
 
-def permissions_guidance_needed(port: int) -> bool:
-    """macOS only: True when TCC grants are the likely culprit (heuristic; can't query another binary's grants)."""
+def missing_macos_grants() -> list[str]:
+    """macOS grants this process lacks; non-prompting, so the doctor stays read-only."""
+    from ApplicationServices import AXIsProcessTrusted
+    from Quartz import CGPreflightScreenCaptureAccess
+
+    missing = []
+    if not AXIsProcessTrusted():
+        missing.append("Accessibility")
+    if not CGPreflightScreenCaptureAccess():
+        missing.append("Screen Recording")
+    return missing
+
+
+def permissions_guidance(port: int) -> str | None:
+    """macOS grants to fix, or None: this process's own, plus the runtime's when its log shows a denial."""
     # platform.system() not sys.platform: mypy narrows the latter and flags this unreachable on Linux CI.
     if platform.system() != "Darwin":
-        return False
-    # A PATH binary (dev setup) never gets a first-run marker, so only the managed install counts as pending.
-    managed_first_run_pending = shutil.which("hai-agent-runtime") is None and runtime_install.first_run_pending(
-        runtime_install.PINNED_RUNTIME_VERSION
-    )
-    return managed_first_run_pending or log_tail_suggests_permissions(port)
+        return None
+    lines = []
+    missing = missing_macos_grants()
+    if missing:
+        lines.append(
+            f"This terminal lacks [bold]{' and '.join(missing)}[/bold]. Holo drives the desktop from the app "
+            "that runs it (this terminal, or your MCP/ACP host): grant that app, then restart it."
+        )
+    if log_tail_suggests_permissions(port):
+        lines.append(
+            "The runtime log shows a permission denial from a [cyan]--fast[/cyan] run, which drives the "
+            "desktop from the runtime: grant the runtime too, then restart it."
+        )
+    return "\n".join(lines) or None
 
 
 def run_checks(settings: HoloSettings) -> list[CheckResult]:
-    return [check_binary(), check_login(settings), check_agent_api(settings), check_holo_dir()]
+    return [check_binary(), check_login(settings), check_agent_api(settings), check_holo_dir(settings)]
 
 
 def doctor() -> None:
@@ -134,15 +151,13 @@ def doctor() -> None:
         if result.fix is not None:
             out.print(f"  [dim]fix:[/dim] {result.fix}")
 
-    if permissions_guidance_needed(port_from_env(settings=settings)):
+    guidance = permissions_guidance(port_from_env(settings=settings))
+    if guidance is not None:
         out.print(
             Panel(
-                "macOS cannot be queried for another app's grants, so verify manually that the runtime "
-                "has [bold]Accessibility[/bold] and [bold]Screen Recording[/bold] under "
-                "System Settings → Privacy & Security:\n"
+                f"{guidance}\nGrant under System Settings → Privacy & Security:\n"
                 f"  • [link={ACCESSIBILITY_SETTINGS_URL}]Open Accessibility settings[/link]\n"
-                f"  • [link={SCREEN_RECORDING_SETTINGS_URL}]Open Screen Recording settings[/link]\n"
-                "After granting, the runtime must restart once for the grants to take effect.",
+                f"  • [link={SCREEN_RECORDING_SETTINGS_URL}]Open Screen Recording settings[/link]",
                 title="[bold]macOS permissions[/bold]",
                 title_align="left",
                 border_style="dim",

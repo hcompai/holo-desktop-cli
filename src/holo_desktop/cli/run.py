@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import httpx
 import tyro
+from hai_agents.core.api_error import ApiError
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -20,13 +21,14 @@ if TYPE_CHECKING:
 from holo_desktop.agent_client import runtime_install
 from holo_desktop.agent_client.launcher import (
     AGENT_API_DEFAULT_PORT,
-    PORT_ENV,
+    DESKTOP_RECIPE,
     log_tail_suggests_permissions,
     port_from_env,
+    recipe_for,
     text_suggests_bad_api_key,
     text_suggests_permissions,
 )
-from holo_desktop.settings import HoloSettings
+from holo_desktop.settings import PORT_ENV, HoloSettings
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +106,12 @@ def run(
         )
         raise SystemExit(1)
 
-    # First task against a freshly downloaded runtime on macOS: TCC prompts appear, grants latch only after restart.
+    # Desktop recipe only: the runtime drives the device, so its TCC grants latch after it restarts.
+    # The shared recipe drives it from this process, whose SDK preflight raises PermissionError instead.
     walkthrough_pending = (
         sys.platform == "darwin"
         and not fake
+        and recipe_for(fast=fast) == DESKTOP_RECIPE
         and shutil.which("hai-agent-runtime") is None
         and runtime_install.first_run_pending(runtime_install.PINNED_RUNTIME_VERSION)
     )
@@ -178,7 +182,10 @@ def run(
                     "holo mcp). Restart that process so the grants latch, or pass --port to spawn a fresh "
                     "runtime here.[/dim]"
                 )
-    except (RuntimeError, httpx.HTTPError) as exc:
+    except PermissionError as exc:
+        die("permission denied", str(exc))
+        return
+    except (RuntimeError, httpx.HTTPError, ApiError) as exc:
         die(type(exc).__name__, str(exc))
         return
     finally:
@@ -257,9 +264,9 @@ async def _drive(
         SpawnConfig(port=port, model=model, base_url=base_url, fake=fake, fast=fast, runs_dir=runs_dir),
         settings=settings,
     )
-    spawned = daemon.proc is not None
+    spawned = daemon.runtime.owned
     try:
-        async with AgentApiClient(daemon.base_url, daemon.token) as client:
+        async with await AgentApiClient.connect(daemon) as client:
             session = Session()
             feed = None if quiet else LiveFeed(console, expand=expand)
 

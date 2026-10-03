@@ -63,7 +63,6 @@ class RuntimeSpawnSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     port: Port = Field(default=AGENT_API_DEFAULT_PORT, validation_alias=PORT_ENV)
-    api_token: OptionalText = Field(default=None, validation_alias=AUTH_TOKEN_ENV)
     model: OptionalText = Field(default=None, validation_alias="HAI_AGENT_RUNTIME_MODEL")
     base_url: OptionalText = Field(default=None, validation_alias=RUNTIME_BASE_URL_ENV)
     fake: bool = Field(default=False, validation_alias="HAI_AGENT_RUNTIME_FAKE")

@@ -12,26 +12,27 @@ import importlib
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from threading import Thread
 
 import pytest
 
 from holo_desktop.agent_client import launcher
-from holo_desktop.agent_client.launcher import AUTH_TOKEN_ENV, PORT_ENV
 from holo_desktop.cli.serve import HoloExecutor
-from holo_desktop.settings import load_holo_settings
+from holo_desktop.settings import AUTH_TOKEN_ENV, PORT_ENV, load_holo_settings
+
+from ._runtime_stub import ProvingHandler
 
 serve_mod = importlib.import_module("holo_desktop.cli.serve")
 
 
-class _HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:
-        self.send_response(200 if self.path == "/health" else 404)
-        self.end_headers()
+class _HealthHandler(ProvingHandler):
+    token = "test-token"
 
-    def log_message(self, format: str, *args: object) -> None:  # stdlib signature; silences request logs
-        return
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok","recipe":"shared"}')
 
 
 @contextmanager
@@ -55,7 +56,7 @@ def test_executor_attaches_to_port_from_env(monkeypatch: pytest.MonkeyPatch) -> 
     async def startup_and_shutdown(executor: HoloExecutor) -> str:
         await executor.startup()
         assert executor._daemon is not None
-        base_url = executor._daemon.base_url
+        base_url = executor._daemon.runtime.base_url
         await executor.shutdown()
         return base_url
 

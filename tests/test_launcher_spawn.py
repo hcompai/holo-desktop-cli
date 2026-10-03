@@ -19,6 +19,9 @@ from pathlib import Path
 import pytest
 
 from holo_desktop.agent_client import launcher
+from holo_desktop.settings import AUTH_TOKEN_ENV
+
+from ._runtime_stub import SCRIPT as STUB_SCRIPT
 
 # Exits 2 after complaining on stderr; never serves /health.
 CRASHING_BINARY = textwrap.dedent(
@@ -35,23 +38,13 @@ CRASHING_BINARY = textwrap.dedent(
 # the healthy path stays fast even on a heavily contended CI runner.
 CHATTY_BINARY = textwrap.dedent(
     """
-    import os, sys
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import runpy, sys
 
     for _ in range(256):
         sys.stderr.write("x" * 1024 + "\\n")
     sys.stderr.flush()
 
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"ok")
-
-        def log_message(self, *args):
-            pass
-
-    HTTPServer(("127.0.0.1", int(os.environ["HAI_AGENT_RUNTIME_PORT"])), Handler).serve_forever()
+    runpy.run_path(sys.argv[1], run_name="__main__")
     """
 )
 
@@ -78,10 +71,8 @@ def _use_stub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str) -> N
     script = tmp_path / "stub_runtime.py"
     script.write_text(source, encoding="utf-8")
     # The binary-resolution seam: resolution itself is covered in test_runtime_install.py.
-    monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, str(script)])
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
-    monkeypatch.setattr(launcher, "LOG_DIR", tmp_path / "logs")
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, str(script), STUB_SCRIPT])
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
 
 
 async def _ensure_running(config: launcher.SpawnConfig) -> launcher.AgentDaemon:
@@ -164,13 +155,15 @@ def test_spawn_survives_chatty_stderr(tmp_path: Path, monkeypatch: pytest.Monkey
     # hang). An artificially tight override false-failed on contended macOS CI runners,
     # where interpreter launch + health poll alone can exceed a low limit.
 
+    port = _free_port()
+
     async def spawn_and_stop() -> None:
-        daemon = await _ensure_running(launcher.SpawnConfig(port=_free_port(), fake=True))
+        daemon = await _ensure_running(launcher.SpawnConfig(port=port, fake=True))
         await daemon.aclose()
 
     asyncio.run(spawn_and_stop())
 
-    logs = list((tmp_path / "logs").glob("hai-agent-runtime-*.log"))
-    assert logs, "spawn must leave the binary's stderr in a log file"
+    log = launcher.runtime_log_path(port)
+    assert log.is_file(), "spawn must leave the binary's stderr in a log file"
     # Past any platform's pipe buffer (~64KB), proving the flood wrote without blocking.
-    assert logs[0].stat().st_size > 200 * 1024
+    assert log.stat().st_size > 200 * 1024

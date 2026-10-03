@@ -299,7 +299,6 @@ jobs:
         shell: pwsh
         env:
           HOLO_HOME: ${{ runner.temp }}\holo-installer-home\.holo
-          UV_NO_BUILD: "1"
         run: |
           $ErrorActionPreference = "Stop"
           $installer = Join-Path $env:RUNNER_TEMP "install.ps1"

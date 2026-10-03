@@ -17,28 +17,20 @@ from pathlib import Path
 import pytest
 
 from holo_desktop.agent_client import launcher
+from holo_desktop.settings import AUTH_TOKEN_ENV
 
-# Dumps its HAI_AGENT_RUNTIME_* env to a file, then serves 200 on every GET so
-# ensure_running's /health handshake succeeds. A stand-in for the real binary.
+from ._runtime_stub import SCRIPT as STUB_SCRIPT
+
+# Dumps its HAI_AGENT_RUNTIME_* env to a file, then runs the healthy proving stub.
 STUB_BINARY = textwrap.dedent(
     """
-    import json, os
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import json, os, runpy, sys
 
     dump = {k: v for k, v in os.environ.items() if k.startswith("HAI_AGENT_RUNTIME_") or k == "HAI_BASE_URL"}
     with open(os.environ["STUB_ENV_DUMP"], "w", encoding="utf-8") as fh:
         json.dump(dump, fh)
 
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"ok")
-
-        def log_message(self, *args):
-            pass
-
-    HTTPServer(("127.0.0.1", int(os.environ["HAI_AGENT_RUNTIME_PORT"])), Handler).serve_forever()
+    runpy.run_path(sys.argv[1], run_name="__main__")
     """
 )
 
@@ -55,10 +47,9 @@ def _use_stub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     script.write_text(STUB_BINARY, encoding="utf-8")
     dump_path = tmp_path / "env.json"
     # The binary-resolution seam: resolution itself is covered in test_runtime_install.py.
-    monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, str(script)])
+    monkeypatch.setattr(launcher, "resolve_command", lambda **_: [sys.executable, str(script), STUB_SCRIPT])
     monkeypatch.setenv("STUB_ENV_DUMP", str(dump_path))
-    monkeypatch.delenv(launcher.AUTH_TOKEN_ENV, raising=False)
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path / "tokens")
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
     return dump_path
 
 

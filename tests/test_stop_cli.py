@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from hai_agents_local.runtime import process as runtime_process
+from hai_agents_local.runtime import state as runtime_state
 
 from holo_desktop.agent_client import launcher
 from holo_desktop.cli.stop import stop
@@ -18,12 +20,24 @@ from holo_desktop.killswitch.channel import StopSentinel
 @pytest.fixture(autouse=True)
 def _isolate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(channel, "STOP_PATH", tmp_path / "stop")
-    monkeypatch.setattr(launcher, "TOKEN_DIR", tmp_path)
+    monkeypatch.setattr(launcher, "LEGACY_STATE_DIR", tmp_path / "legacy")
 
 
 @pytest.fixture
 def _pids_are_runtimes_except_4444(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(launcher, "process_is_runtime", lambda pid: pid != 4444)
+
+
+@pytest.fixture
+def killed(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    pids: list[int] = []
+    monkeypatch.setattr(runtime_process, "kill_process_group", lambda pid: pids.append(pid) or True)
+    return pids
+
+
+def _publish_pid(directory: Path, port: int, pid: int) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"agent-pid-{port}").write_text(str(pid), encoding="utf-8")
 
 
 def test_stop_files_a_fresh_request() -> None:
@@ -34,11 +48,9 @@ def test_stop_files_a_fresh_request() -> None:
 
 
 @pytest.mark.usefixtures("_pids_are_runtimes_except_4444")
-def test_force_kills_discovered_runtime_pids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    (tmp_path / "agent-pid-18795").write_text("4242", encoding="utf-8")
-    (tmp_path / "agent-pid-9000").write_text("4243", encoding="utf-8")
-    killed: list[int] = []
-    monkeypatch.setattr(launcher, "kill_runtime_by_pid", lambda pid: killed.append(pid) or True)
+def test_force_kills_runtimes_from_shared_and_legacy_state(killed: list[int]) -> None:
+    _publish_pid(runtime_state.state_dir(), 18795, 4242)
+    _publish_pid(launcher.LEGACY_STATE_DIR, 9000, 4243)
 
     stop(force=True)
 
@@ -46,11 +58,9 @@ def test_force_kills_discovered_runtime_pids(tmp_path: Path, monkeypatch: pytest
 
 
 @pytest.mark.usefixtures("_pids_are_runtimes_except_4444")
-def test_force_targets_only_the_requested_port(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    (tmp_path / "agent-pid-18795").write_text("4242", encoding="utf-8")
-    (tmp_path / "agent-pid-9000").write_text("4243", encoding="utf-8")
-    killed: list[int] = []
-    monkeypatch.setattr(launcher, "kill_runtime_by_pid", lambda pid: killed.append(pid) or True)
+def test_force_targets_only_the_requested_port(killed: list[int]) -> None:
+    _publish_pid(runtime_state.state_dir(), 18795, 4242)
+    _publish_pid(runtime_state.state_dir(), 9000, 4243)
 
     stop(force=True, port=9000)
 
@@ -58,12 +68,8 @@ def test_force_targets_only_the_requested_port(tmp_path: Path, monkeypatch: pyte
 
 
 @pytest.mark.usefixtures("_pids_are_runtimes_except_4444")
-def test_force_skips_pid_files_whose_pid_is_no_longer_a_runtime(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "agent-pid-18795").write_text("4444", encoding="utf-8")
-    killed: list[int] = []
-    monkeypatch.setattr(launcher, "kill_runtime_by_pid", lambda pid: killed.append(pid) or True)
+def test_force_skips_pid_files_whose_pid_is_no_longer_a_runtime(killed: list[int]) -> None:
+    _publish_pid(runtime_state.state_dir(), 18795, 4444)
 
     stop(force=True)
 
