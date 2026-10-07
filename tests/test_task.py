@@ -15,7 +15,7 @@ from agp_types import TrajectoryEvent
 
 from holo_desktop import customization
 from holo_desktop.cli.mcp import holo_desktop
-from holo_desktop.task import DEFAULT_MAX_STEPS, Outcome, build_agent, open_client, run_task
+from holo_desktop.task import DEFAULT_MAX_STEPS, Outcome, build_agent, run_task
 
 EVENT = TrajectoryEvent(
     type="AgentEvent", data={"kind": "policy_event", "content": "thinking"}, timestamp=datetime.now(UTC)
@@ -99,11 +99,6 @@ def test_agent_carries_user_customization_and_fast_disables_reasoning() -> None:
     assert default["environments"] == [{"id": "desktop", "kind": "desktop", "host": "user_device"}]
     fast = build_agent(model="holo4-35b-a3b", fast=True)
     assert (fast.reasoning_effort, fast.model) == ("disabled", "holo4-35b-a3b")
-
-
-def test_self_hosted_endpoint_requires_a_model() -> None:
-    with pytest.raises(ValueError, match="--model"):
-        asyncio.run(open_client(base_url="http://localhost:8000/v1"))
 
 
 def _call_tool(handle: FakeHandle) -> str:

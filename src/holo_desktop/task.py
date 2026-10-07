@@ -55,11 +55,8 @@ def resolve_target(base_url: str | None = None, model: str | None = None) -> tup
 
 async def open_client(*, base_url: str | None = None, model: str | None = None) -> AsyncClient:
     """A client on the local runtime; `base_url` points inference at a self-hosted server named `model`."""
-    if not base_url:
-        return await AsyncClient.local()
-    if not model:
-        raise ValueError("a self-hosted --base-url needs --model: the Holo version your server serves")
-    return await AsyncClient.local(inference=Inference.self_hosted(base_url, model=model))
+    inference = Inference.self_hosted(base_url, model=model or "") if base_url else None
+    return await AsyncClient.local(inference=inference)
 
 
 async def run_task(
