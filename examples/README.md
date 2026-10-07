@@ -4,7 +4,6 @@ Runnable examples built on [holo-desktop-cli](../README.md). Each example is its
 
 | example | what it shows |
 |---|---|
-| [expense_report](expense_report/) | A deterministically verified multi-app demo: read receipts, fill a LibreOffice Calc ledger, start a Mail draft, and check the result. |
 | [software_qa](software_qa/) | A Claude Code QA loop: edit a small React app, ask Holo to test the visible UI, fix the bug Holo reports, and verify again. |
 
 ## Running an example

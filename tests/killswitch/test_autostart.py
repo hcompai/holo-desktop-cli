@@ -10,7 +10,6 @@ from holo_desktop.killswitch import autostart
 from holo_desktop.killswitch.autostart import (
     AutostartResult,
     ensure_autostart,
-    render_linux_desktop,
     render_macos_plist,
     render_windows_launcher,
 )
@@ -27,12 +26,6 @@ def test_macos_plist_runs_holo_guard_with_load_flags() -> None:
 
 def test_windows_launcher_starts_holo_guard_detached() -> None:
     assert render_windows_launcher("C:\\holo\\holo.exe") == '@echo off\r\nstart "" "C:\\holo\\holo.exe" guard\r\n'
-
-
-def test_linux_desktop_execs_holo_guard() -> None:
-    desktop = render_linux_desktop("/usr/bin/holo")
-    assert "Exec=/usr/bin/holo guard" in desktop
-    assert "Type=Application" in desktop
 
 
 def test_ensure_macos_writes_then_skips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -54,9 +47,8 @@ def test_ensure_macos_writes_then_skips(tmp_path: Path, monkeypatch: pytest.Monk
     assert again is AutostartResult.SKIPPED
 
 
-def test_wayland_is_unsupported(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_linux_is_unsupported(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(autostart.platform, "system", lambda: "Linux")
-    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
     result, _ = ensure_autostart("/usr/bin/holo")
     assert result is AutostartResult.UNSUPPORTED
 

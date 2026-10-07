@@ -8,7 +8,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
-from holo_desktop.agent_client.events import PolicyView, format_event, is_policy_event, policy_view
+from holo_desktop.events import PolicyView, format_event, is_policy_event, policy_view
 
 _ARG_VALUE_MAX = 150
 

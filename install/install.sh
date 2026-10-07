@@ -195,7 +195,7 @@ if [ "${HOLO_INSTALL_SKIP_RUN_SETUP:-}" != "1" ]; then
   UV_PYTHON_INSTALL_DIR="$HOLO_HOME/python" \
   UV_TOOL_DIR="$HOLO_HOME/tools" \
   UV_TOOL_BIN_DIR="$HOLO_HOME/bin" \
-  "$UV_BIN" run --with "$PACKAGE_SPEC" python -m holo_desktop.installer_bootstrap --yes
+  "$UV_BIN" run --with "$PACKAGE_SPEC" python -m holo_desktop.installer_bootstrap
 fi
 
 info ""

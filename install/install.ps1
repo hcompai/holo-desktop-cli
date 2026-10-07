@@ -157,7 +157,7 @@ try {
     }
 
     if ($env:HOLO_INSTALL_SKIP_RUN_SETUP -ne "1") {
-        & $UvExe run --python $PythonExe --with $PackageSpec @BinaryDependencyArgs python -m holo_desktop.installer_bootstrap --yes
+        & $UvExe run --python $PythonExe --with $PackageSpec @BinaryDependencyArgs python -m holo_desktop.installer_bootstrap
         if ($LASTEXITCODE -ne 0) {
             Fail "Holo Desktop runtime setup failed"
         }

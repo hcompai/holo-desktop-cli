@@ -1,48 +1,36 @@
-# Self-hosting Holo3
+# Self-hosting Holo
 
-Holo's agent talks to any OpenAI-compatible server, so you can serve [Holo3](https://huggingface.co/Hcompany/Holo3-35B-A3B) yourself and keep every screenshot, keystroke, and bit of app content on your own machine. Point any surface at your server with `--base-url`:
+Serve Holo yourself and keep every screenshot, keystroke, and bit of app content on your own machine. Point `holo` at any OpenAI-compatible server with `--base-url`, and name the Holo version it serves with `--model`:
 
 ```bash
-holo run --base-url http://localhost:8000/v1 "Open Safari and go to hcompany.ai"
+holo run --base-url http://localhost:8000/v1 --model holo4-35b-a3b "Open Safari and go to hcompany.ai"
 ```
 
-No `holo login` is needed in this mode, and the hosted `HAI_API_KEY` is never passed through to your server.
+`--model` is both the Holo version (it sets the prompt format: `holo4-35b-a3b`, `holo4-27b`, or `holo3-1-35b-a3b`) and the model name sent to your server, so serve under that name. No `holo login` is needed, and the hosted API key is never passed to your server. For `holo mcp`, set `HAI_AGENT_RUNTIME_BASE_URL` and `HAI_AGENT_RUNTIME_MODEL` instead.
 
-## Hardware
-
-Holo3-35B-A3B fits comfortably on a recent MacBook Pro or Mac Mini at Q4. NVIDIA's [DGX Spark](https://www.nvidia.com/en-us/products/workstations/dgx-spark/) runs both the 35B and 122B at higher precision and gives you the best agent quality on a single box. Multi-GPU rigs and rack servers serve the FP8 stack at full throughput.
-
-## vLLM (Holo3-35B-A3B-FP8)
-
-Per-request `reasoning_effort` is honored via `chat_template_kwargs`; think tokens are decoded with `--reasoning-parser qwen3`.
+## vLLM (GPU server)
 
 ```bash
-export VLLM_ATTENTION_BACKEND=FLASHINFER
-export TORCH_CUDA_ARCH_LIST=12.1a
-
-vllm serve Hcompany/Holo3-35B-A3B-FP8 \
-  --host 0.0.0.0 --port 8000 \
-  --tensor-parallel-size 1 --gpu-memory-utilization 0.85 \
-  --max-model-len 65537 --max-num-batched-tokens 8192 --max-num-seqs 1 \
-  --kv-cache-dtype fp8 --attention-backend flashinfer --enable-prefix-caching \
-  --load-format fastsafetensors \
-  --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3 \
+vllm serve Hcompany/Holo4-35B-A3B-FP8 \
+  --served-model-name holo4-35b-a3b \
+  --max-model-len 262144 \
+  --enable-prefix-caching \
   --chat-template-content-format openai \
-  --limit-mm-per-prompt '{"image": 1}' \
-  --mm-processor-cache-gb 4 --mm-processor-cache-type shm \
-  --trust-remote-code
+  --enable-auto-tool-choice \
+  --tool-call-parser qwen3_coder \
+  --reasoning-parser qwen3 \
+  --limit-mm-per-prompt '{"image": 5, "video": 0}'
 ```
 
-## llama.cpp (Holo3-35B-A3B GGUF)
+Base URL: `http://localhost:8000/v1`.
 
-Quants by [mradermacher/Holo3-35B-A3B-GGUF](https://huggingface.co/mradermacher/Holo3-35B-A3B-GGUF) (community).
-
-Reasoning behavior is fixed at server launch (`--reasoning auto` separates `<think>` from content). `chat_template_kwargs` is silently ignored, so per-request `reasoning_effort` falls back to logit-bias steering on the `</think>` token.
+## llama.cpp (Mac)
 
 ```bash
-llama-server -hf mradermacher/Holo3-35B-A3B-GGUF:Q4_K_M \
-  --host 0.0.0.0 --port 8000 \
-  --jinja --reasoning auto \
-  -c 65536 -ngl 99 \
-  --chat-template-kwargs '{"enable_thinking": true}'
+brew install llama.cpp
+llama-server -hf Hcompany/Holo4-35B-A3B-GGUF
 ```
+
+Base URL: `http://localhost:8080/v1`. llama.cpp accepts any model name.
+
+More sizes, precisions, and troubleshooting: [Run the model on your own GPUs](https://hub.hcompany.ai/agents-api/local-inference).

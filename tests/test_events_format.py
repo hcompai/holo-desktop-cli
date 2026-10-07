@@ -14,7 +14,7 @@ from agent_interface.agent_events import ToolResultEvent as PublicToolResultEven
 from agp_types import TrajectoryEvent
 from pydantic import BaseModel
 
-from holo_desktop.agent_client import events
+from holo_desktop import events
 
 
 def _agent_event(kind: str, **data: object) -> TrajectoryEvent:

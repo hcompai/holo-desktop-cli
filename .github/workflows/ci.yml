@@ -212,6 +212,6 @@ jobs:
         run: scripts/ci_examples.sh
       - name: smoke imports + CLI
         run: |
-          uv run python -c "import holo_desktop; import holo_desktop.cli.mcp; import holo_desktop.cli.serve; import holo_desktop.cli.acp; import holo_desktop.cli.hosts; import holo_desktop.cli; import holo_desktop.agent_client; from holo_desktop import __version__; print(__version__)"
+          uv run python -c "import holo_desktop; import holo_desktop.cli.mcp; import holo_desktop.cli.hosts; import holo_desktop.cli; import holo_desktop.task; from holo_desktop import __version__; print(__version__)"
           uv run holo install list
           uv run holo install cursor

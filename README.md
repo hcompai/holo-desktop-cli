@@ -11,7 +11,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
 </p>
 
-Tell your computer what to do. Holo gets it done. `holo-desktop-cli` is the open-source client for [Holo3](https://huggingface.co/Hcompany/Holo3-35B-A3B), H Company's open-weight vision-language model. It launches the agent and fronts it as a CLI and an MCP server. Use the hosted API, or run everything on your own machine for full privacy.
+Tell your computer what to do. Holo gets it done. `holo-desktop-cli` puts H Company's [Holo](https://huggingface.co/Hcompany) desktop agent on your machine, as a CLI and an MCP server. It is a thin shell over the [`hai-agents`](https://pypi.org/project/hai-agents/) SDK local mode. Use the hosted API, or run everything on your own machine for full privacy.
 
 **Docs:** The [HoloDesktop CLI docs](https://hub.hcompany.ai/holo-desktop-cli) cover setup guides, run examples, debugging advice, integration guides, and the full CLI reference.
 
@@ -19,11 +19,11 @@ Tell your computer what to do. Holo gets it done. `holo-desktop-cli` is the open
 
 Holo is three parts:
 
-- **This repo, `holo-desktop-cli`,** is the [Apache-2.0-licensed](LICENSE) client: the CLI plus the MCP server. It launches the agent and drives it over loopback.
+- **This repo, `holo-desktop-cli`,** is the [Apache-2.0-licensed](LICENSE) client: the CLI plus the MCP server.
+- **The [`hai-agents`](https://pypi.org/project/hai-agents/) SDK** (open source) starts the agent runtime and drives your desktop from this process.
 - **The agent** runs inside H Company's `hai-agent-runtime` binary. That binary is closed-source and downloads itself on first run (sha256-verified).
-- **The contract between them** is the open [`hai-agent-api`](https://pypi.org/project/hai-agent-api/) package, so what the client sends is fully inspectable.
 
-Point it at the hosted [Holo3](https://huggingface.co/Hcompany/Holo3-35B-A3B) models, or at [your own server](docs/self-hosting.md) where nothing leaves your machine.
+Point it at the hosted Holo models, or at [your own server](docs/self-hosting.md) where nothing leaves your machine.
 
 ## Quickstart
 
@@ -46,9 +46,9 @@ holo run "Open Calculator and compute 2+2"
 On first run:
 
 1. The installer sets up a private Holo toolchain under `~/.holo/` and exposes `holo` on your shell `PATH`.
-2. The `hai-agent-runtime` binary downloads itself to `~/.holo/runtime/` (sha256-verified). Developers can skip this by putting `hai-agent-runtime` (or a wrapper script) on `PATH`.
+2. The `hai-agent-runtime` binary downloads itself to `~/.hai/agent-runtime/` (sha256-verified). Developers can skip this by putting `hai-agent-runtime` (or a wrapper script) on `PATH`.
 3. Your browser opens to sign in at [portal.hcompany.ai](https://portal.hcompany.ai). Skip with `--base-url` for a local model.
-4. macOS only: grant the agent runtime *Accessibility* and *Screen Recording* in *System Settings → Privacy & Security* when prompted.
+4. macOS only: grant your terminal *Accessibility* and *Screen Recording* in *System Settings → Privacy & Security* when prompted.
 
 ## Two ways to use Holo
 
@@ -61,7 +61,7 @@ See the [CLI reference](https://hub.hcompany.ai/holo-desktop-cli/reference/cli) 
 
 ## Stopping the agent (kill switch)
 
-Once the agent is driving the screen it's hard to take back control. Holo gives you an out-of-band panic stop: **press `Esc` twice quickly** and the current turn pauses, then cancels.
+Once the agent is driving the screen it's hard to take back control. Holo gives you an out-of-band panic stop: **press `Esc` twice quickly** and the running task cancels.
 
 | Where you're running | What watches for the double-`Esc` |
 | -------------------- | --------------------------------- |
@@ -71,71 +71,42 @@ Once the agent is driving the screen it's hard to take back control. Holo gives 
 You can also stop without the keyboard:
 
 ```bash
-holo stop          # ask the running turn to pause then cancel (same as double-Esc)
-holo stop --force  # additionally SIGKILL the runtime — instant, but ends the session outright
+holo stop          # cancel the running task (same as double-Esc)
 holo guard         # run the listener yourself in the foreground (e.g. if you skipped holo install)
 ```
 
-Good to know:
-
-- **The stop is step-bounded.** It halts the *next* action; the runtime still finishes the action already in flight. `holo stop --force` is the only instant stop.
-- **`holo stop --force` kills the runtime but leaves a headless host running with a dead backend.** `holo mcp` spawns its runtime once at startup and keeps pointing at it, so after a force-kill the host process stays up but every later task fails (its requests hit a runtime that no longer exists) until you restart the host. Prefer plain `holo stop` there; reserve `--force` for `holo run` or a wedged runtime.
-- **The guard only inspects `Esc` timing**, never keystroke content — but it does hold Input Monitoring continuously while installed. Disable the embedded listener for a single run with `holo run --no-kill-switch`.
-- **`holo stop --force` matches pids by command line only.** A runtime that exited uncleanly can leave a stale `~/.hai/agent-runtime/state/agent-pid-<port>` behind; the pid is killed only if its command line names the runtime binary, so a recycled pid now running another runtime instance could still be targeted.
-- **Wayland (Linux) has no global key listener.** Use `holo stop` instead, bound to a compositor hotkey.
-
-### How the stop signal works
-
-The trigger and the lever are decoupled through a single one-line file, `~/.holo/stop`, holding a **wall-clock timestamp**:
-
-- **Writing it (the trigger):** `holo stop`, the `holo run` listener, and `holo guard` all write `time.time()` to that file. They're separate processes, so a wall-clock value is what lets them and the running turn agree on ordering.
-- **Reading it (the lever):** every turn records its own `started_at` and, while running, polls the file ~4×/s. It acts **only if the file's timestamp is newer than its `started_at`** — then it pauses, then cancels at the next action boundary.
-- **Clearing it:** the file is *never deleted*. It's cleared by time — the next turn starts later, so a leftover request is automatically stale and can't kill it. This is also why a `holo stop` fired *before* a run begins is ignored: nothing was running to stop.
-
-`holo stop --force` is the exception to the step-bounded model: it reads the runtime's pid file (`~/.hai/agent-runtime/state/agent-pid-<port>`) and SIGKILLs the process directly, so it doesn't wait for an action boundary.
+All three write a timestamp to `~/.config/hai/stop`; a running task cancels when it sees a stop filed after it started, so a stale stop never kills the next task. The guard only inspects `Esc` timing, never keystroke content, but it holds Input Monitoring while installed. Disable the embedded listener for one run with `holo run --no-kill-switch`.
 
 ## Use from Python
 
-`holo_desktop.agent_client` is the same client every CLI surface is built on: it spawns (or attaches to) the `hai-agent-runtime` binary on loopback and drives sessions over the agent API.
+Use the [`hai-agents`](https://pypi.org/project/hai-agents/) SDK directly; `holo` is a thin shell over its local mode:
 
 ```python
-import asyncio
+from hai_agents import Client
 
-from holo_desktop.agent_client import AgentApiClient, SpawnConfig, ensure_running
-from holo_desktop.agent_client.requests import build_session_request
-
-
-async def main() -> None:
-    daemon = await ensure_running(SpawnConfig(port=18795))
-    try:
-        async with AgentApiClient(daemon.base_url, daemon.token) as client:
-            request = build_session_request(
-                task="Tell me how many unread emails I have", max_steps=None, max_time_s=None
-            )
-            stream = client.stream(await client.create_session(request))
-            async for event in stream.events():
-                print(event.type)
-            print(stream.answer)
-    finally:
-        await daemon.aclose()
-
-
-asyncio.run(main())
+with Client.local() as client:
+    result = client.run_session(
+        agent={
+            "name": "holo",
+            "description": "Desktop agent",
+            "environments": [{"id": "desktop", "kind": "desktop", "host": "user_device"}],
+        },
+        messages="Tell me how many unread emails I have",
+    )
+    print(result.answer)
 ```
-
-`AgentApiClient` also exposes `pause` / `resume` / `cancel` and mid-run `send_message` for interactive embedding.
 
 ## Models
 
-Holo defaults to the [H Company Models API](https://hcompany.ai/holo-models-api). Your first `holo run` opens your browser, signs you in at [portal.hcompany.ai](https://portal.hcompany.ai), and saves a key to `~/.holo/.env`. Run `holo login` to do this ahead of time. Holo3-35B is on the free tier; the 122B requires a paid plan.
+Holo defaults to the [H Company Models API](https://hcompany.ai/holo-models-api). Your first `holo run` opens your browser, signs you in at [portal.hcompany.ai](https://portal.hcompany.ai), and saves a key to `~/.config/hai/.env` (shared with the `hai` CLI). Run `holo login` to do this ahead of time.
 
-To run on your own hardware instead, point `--base-url` at any OpenAI-compatible server. No `holo login` needed, and no screenshots, keystrokes, or app content leave your machine.
+To run on your own hardware instead, point `--base-url` at any OpenAI-compatible server and name the model it serves with `--model`. No `holo login` needed, and no screenshots, keystrokes, or app content leave your machine.
 
 ```bash
-holo run --base-url http://localhost:8000/v1 "Open Safari and go to hcompany.ai"
+holo run --base-url http://localhost:8000/v1 --model holo4-35b-a3b "Open Safari and go to hcompany.ai"
 ```
 
-Hardware notes and ready-to-run vLLM and llama.cpp configs are in [docs/self-hosting.md](docs/self-hosting.md).
+Serving configs are in [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Use inside another agent
 
@@ -169,7 +140,7 @@ Each host gets the MCP server in its config, plus a [Skill](https://docs.claude.
 
 ## Develop
 
-All dependencies resolve from PyPI (the agent-API wire types come from `hai-agent-api`), so a plain checkout is all you need:
+All dependencies resolve from PyPI, so a plain checkout is all you need:
 
 ```bash
 git clone https://github.com/hcompai/holo-desktop-cli && cd holo-desktop-cli
@@ -189,10 +160,10 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 
-The `holo-desktop-cli` client (this repository) is [Apache-2.0-licensed](LICENSE). The `hai-agent-runtime` binary it downloads and drives is closed-source and distributed under H Company's own terms; the wire contract between the two is the open [`hai-agent-api`](https://pypi.org/project/hai-agent-api/) package.
+The `holo-desktop-cli` client (this repository) is [Apache-2.0-licensed](LICENSE). The `hai-agent-runtime` binary the SDK downloads is closed-source and distributed under H Company's own terms.
 
 ## Resources
 
-- Models: [Holo3-35B-A3B](https://huggingface.co/Hcompany/Holo3-35B-A3B) · [Holo3-122B-A10B](https://huggingface.co/Hcompany/Holo3-122B-A10B)
+- Models: [Holo on Hugging Face](https://huggingface.co/Hcompany)
 - Docs: [Quickstart](https://hub.hcompany.ai/quickstart) · [Models API](https://hcompany.ai/holo-models-api)
 - [H Company](https://hcompany.ai)

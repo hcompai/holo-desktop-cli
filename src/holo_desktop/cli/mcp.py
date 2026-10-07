@@ -5,27 +5,18 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 
-from agp_types import TrajectoryEvent, TrajectoryStatus
+from agp_types import TrajectoryEvent
+from hai_agents import AsyncClient
 from mcp.server.fastmcp import Context, FastMCP
 
 from holo_desktop import __version__
-from holo_desktop.agent_client.client import AgentApiClient
-from holo_desktop.agent_client.events import format_event
-from holo_desktop.agent_client.launcher import AgentDaemon, ensure_running_from_env
-from holo_desktop.agent_client.session_runner import (
-    DEFAULT_MAX_STEPS,
-    DEFAULT_MAX_TIME_S,
-    SUCCESSFUL_TURN_STATUSES,
-    Session,
-    cancel_session_best_effort,
-    run_turn,
-)
 from holo_desktop.cli.bootstrap import bootstrap_stdio
+from holo_desktop.events import format_event
+from holo_desktop.task import SUCCESS_STATUSES, build_agent, open_client, resolve_target, run_task
 
 INSTRUCTIONS = (
-    "Sub-agent that drives the user's desktop via H Company's Holo3 vision-language model, "
+    "Sub-agent that drives the user's desktop via H Company's Holo vision-language model, "
     "using the real cursor and keyboard in the foreground. Call `holo_desktop` for goals that require operating a native UI "
     "the caller cannot reach: opening apps (Slack, Mail, Calendar, Authy, Obsidian), filling "
     "forms, controlling the user's logged-in Chrome session, toggling system settings. Do not "
@@ -36,26 +27,14 @@ INSTRUCTIONS = (
 )
 
 
-@dataclass
-class Lifespan:
-    client: AgentApiClient
-    daemon: AgentDaemon
-    active_session: Session | None = None
-
-
 @asynccontextmanager
-async def lifespan(_: FastMCP) -> AsyncIterator[Lifespan]:
-    daemon = await ensure_running_from_env()
+async def lifespan(_: FastMCP) -> AsyncIterator[AsyncClient]:
+    base_url, model = resolve_target()
+    client = await open_client(base_url=base_url, model=model)
     try:
-        client = await AgentApiClient.connect(daemon)
-        state = Lifespan(client=client, daemon=daemon)
-        try:
-            yield state
-        finally:
-            await _cancel_active_sessions_best_effort(state)
-            await client.aclose()
+        yield client
     finally:
-        await daemon.aclose()
+        await client.aclose()
 
 
 mcp_app = FastMCP("holo-desktop", instructions=INSTRUCTIONS, lifespan=lifespan)
@@ -68,7 +47,7 @@ async def holo_desktop(task: str, ctx: Context) -> str:
     task = task.strip()
     if not task:
         raise ValueError("task must not be blank")
-    state: Lifespan = ctx.request_context.lifespan_context
+    client: AsyncClient = ctx.request_context.lifespan_context
 
     started = asyncio.get_running_loop().time()
     steps = 0
@@ -81,34 +60,20 @@ async def holo_desktop(task: str, ctx: Context) -> str:
             steps += 1
             await ctx.report_progress(progress=float(steps), message=f"step {steps}")
 
-    # One fresh agent-API session per tool call; no cross-call continuity.
-    session = Session()
-    state.active_session = session
-    try:
-        outcome = await run_turn(
-            state.client, session, task, max_steps=DEFAULT_MAX_STEPS, max_time_s=DEFAULT_MAX_TIME_S, on_event=forward
-        )
-    finally:
-        if state.active_session is session:
-            state.active_session = None
+    _, model = resolve_target()
+    outcome = await run_task(client, build_agent(model=model), task, max_steps=None, max_time_s=None, on_event=forward)
 
     elapsed = round(asyncio.get_running_loop().time() - started, 2)
-    if outcome.status in SUCCESSFUL_TURN_STATUSES:
+    if outcome.status in SUCCESS_STATUSES:
         return outcome.answer or "(empty answer)"
-    if outcome.status == TrajectoryStatus.FAILED:
+    if outcome.status == "failed":
         raise RuntimeError(f"holo error: {outcome.error or 'unknown failure'}")
-    if outcome.status == TrajectoryStatus.TIMED_OUT:
+    if outcome.status == "timed_out":
         raise RuntimeError(f"holo timed out: {outcome.error or 'step/time budget exhausted'}")
     return f"(session ended as {outcome.status} after {steps} step(s), {elapsed}s)"
 
 
-async def _cancel_active_sessions_best_effort(state: Lifespan) -> None:
-    if state.active_session is not None:
-        await cancel_session_best_effort(state.client, state.active_session)
-        state.active_session = None
-
-
 def mcp() -> None:
-    """Run as a stdio MCP server. Auto-spawns the hai-agent-runtime binary if none is listening."""
-    bootstrap_stdio("holo-mcp")
+    """Run as a stdio MCP server. Starts the local runtime if none is listening."""
+    bootstrap_stdio()
     mcp_app.run()

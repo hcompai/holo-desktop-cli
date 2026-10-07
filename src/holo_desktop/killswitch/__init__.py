@@ -1,34 +1,51 @@
-"""Out-of-band double-Esc kill switch: detect the panic gesture and stop the running turn.
-
-Layers: ``channel`` (cross-process stop file), ``gesture`` (tap math), ``listener`` (per-platform
-global Esc listeners), ``macos_tap`` (the self-healing Quartz tap), ``autostart`` (the OS-launched
-``holo guard`` service). Process force-kill lives in ``agent_client.launcher`` and the turn-level
-stop poll in ``agent_client.session_runner``, since both are intrinsic to those subsystems.
-"""
+"""Double-Esc kill switch: the SDK's Quartz tap on macOS, a pynput listener on Windows; both file the SDK stop."""
 
 from __future__ import annotations
 
-from holo_desktop.killswitch.autostart import AutostartResult, ensure_autostart, ensure_loaded
-from holo_desktop.killswitch.channel import StopSentinel, request_stop
-from holo_desktop.killswitch.listener import (
-    KILL_SWITCH_ARMED_HINT,
-    KILL_SWITCH_UNAVAILABLE_HINT,
-    ArmOutcome,
-    StopListener,
-    arm_stop_listener,
-    is_interactive_tty,
+import platform
+import sys
+import time
+from typing import Protocol
+
+from hai_agents_local.killswitch import MultiTapDetector, arm_esc_listener, request_stop
+
+ARMED_HINT = "kill switch armed: press Esc twice fast to stop"
+UNAVAILABLE_HINT = (
+    "double-Esc kill switch unavailable; grant Input Monitoring to this terminal in "
+    "System Settings → Privacy & Security, or stop with `holo stop`"
 )
 
-__all__ = [
-    "KILL_SWITCH_ARMED_HINT",
-    "KILL_SWITCH_UNAVAILABLE_HINT",
-    "ArmOutcome",
-    "AutostartResult",
-    "StopListener",
-    "StopSentinel",
-    "arm_stop_listener",
-    "ensure_autostart",
-    "ensure_loaded",
-    "is_interactive_tty",
-    "request_stop",
-]
+
+class Listener(Protocol):
+    def stop(self) -> None: ...
+
+
+def arm() -> Listener | None:
+    """Arm the global double-Esc listener; None when unsupported here or not permitted."""
+    # platform.system() not sys.platform: mypy narrows the latter and flags a branch unreachable per OS.
+    system = platform.system()
+    if system == "Darwin":
+        return arm_esc_listener()
+    if system == "Windows":
+        return _arm_pynput()
+    return None
+
+
+def is_interactive_tty() -> bool:
+    """Only a real terminal has a human who can press Esc."""
+    return sys.stdin.isatty() and sys.stderr.isatty()
+
+
+def _arm_pynput() -> Listener | None:
+    from pynput import keyboard
+
+    detector = MultiTapDetector()
+
+    def on_press(key: object) -> None:
+        if key == keyboard.Key.esc and detector.record(time.monotonic()):
+            request_stop()
+
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
+    listener.wait()
+    return listener if listener.running else None

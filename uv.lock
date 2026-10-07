@@ -8,12 +8,6 @@ resolution-markers = [
     "python_full_version < '3.13'",
 ]
 
-[manifest]
-members = [
-    "holo-desktop-cli",
-    "holo-expense-report-demo",
-]
-
 [[package]]
 name = "annotated-doc"
 version = "0.0.4"
@@ -512,15 +506,6 @@ wheels = [
 ]
 
 [[package]]
-name = "et-xmlfile"
-version = "2.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d3/38/af70d7ab1ae9d4da450eeec1fa3918940a5fafb9055e934af8d6eb0c2313/et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54", size = 17234, upload-time = "2024-10-25T17:25:40.039Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl", hash = "sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa", size = 18059, upload-time = "2024-10-25T17:25:39.051Z" },
-]
-
-[[package]]
 name = "evdev"
 version = "1.9.3"
 source = { registry = "https://pypi.org/simple" }
@@ -583,16 +568,16 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.2.0"
+version = "1.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fe/a7/77239def78712cdf42ce740932ca342ade190d9a174c0be0410cdf93f46c/hai_agents-1.2.0.tar.gz", hash = "sha256:577f74475ed44428a18e3e040a59249b67f287c1ad449e1d5b71d9af4c4aacc2", size = 1293882, upload-time = "2026-10-06T13:25:55.991Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/66/59eca82eaba0302067cd46edf57442aae724621868d6647aaca6efb1931f/hai_agents-1.2.1.tar.gz", hash = "sha256:f34e794688c393a40571e9b54cfdd2dca0b9c6d525fe0296b593ff3855fa5919", size = 1294172, upload-time = "2026-10-07T20:26:06.396Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/f1/c568c89fb4b672d83d768886d45b0fea9a47182f1ff64eb7e24580c0555c/hai_agents-1.2.0-py3-none-any.whl", hash = "sha256:4b66241ddb6021d61db74b1f72f56c9180fd172985f31620c5fff7f4bd7e4764", size = 283524, upload-time = "2026-10-06T13:25:54.364Z" },
+    { url = "https://files.pythonhosted.org/packages/39/c7/3e17723def5449a44725b2befaa9b810fb3903c063d9ffaffc23ccdca9ba/hai_agents-1.2.1-py3-none-any.whl", hash = "sha256:4c12de590525ec39210d1a6f995c483302829caac8e9a6cd37aeeb44f7121453", size = 283684, upload-time = "2026-10-07T20:26:04.327Z" },
 ]
 
 [package.optional-dependencies]
@@ -629,15 +614,12 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
-    { name = "pydantic-settings" },
     { name = "pynput" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "rich" },
-    { name = "starlette" },
     { name = "tyro" },
-    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -657,19 +639,16 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "hai-agent-api", specifier = ">=0.1.113" },
-    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.2.0" },
+    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.2.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10,<2" },
     { name = "pydantic", specifier = ">=2.11.4" },
-    { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "pynput", specifier = ">=1.7" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
     { name = "python-dotenv", specifier = ">=0.21" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0" },
-    { name = "starlette", specifier = ">=0.49.1" },
     { name = "tyro", specifier = ">=0.8" },
-    { name = "uvicorn", specifier = ">=0.31.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -684,45 +663,6 @@ dev = [
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "ruff", specifier = ">=0.15.13" },
     { name = "types-pyyaml", specifier = ">=6.0" },
-]
-
-[[package]]
-name = "holo-expense-report-demo"
-version = "0.1.0"
-source = { editable = "examples/expense_report" }
-dependencies = [
-    { name = "holo-desktop-cli" },
-    { name = "httpx" },
-    { name = "openpyxl" },
-    { name = "pydantic" },
-    { name = "rich" },
-    { name = "tomli-w" },
-    { name = "tyro" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "holo-desktop-cli", editable = "." },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "openpyxl", specifier = ">=3.1.0" },
-    { name = "pydantic", specifier = ">=2.11.4" },
-    { name = "rich", specifier = ">=13.0" },
-    { name = "tomli-w", specifier = ">=1.0" },
-    { name = "tyro", specifier = ">=0.8" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.13" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "ruff", specifier = ">=0.8" },
 ]
 
 [[package]]
@@ -1050,18 +990,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/24/bf/d1bda4f6168e0b2e9e5958945e01910052158313224ada5ce1fb2e1113b8/nodeenv-1.10.0.tar.gz", hash = "sha256:996c191ad80897d076bdfba80a41994c2b47c68e224c542b48feba42ba00f8bb", size = 55611, upload-time = "2025-12-20T14:08:54.006Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/88/b2/d0896bdcdc8d28a7fc5717c305f1a861c26e18c05047949fb371034d98bd/nodeenv-1.10.0-py2.py3-none-any.whl", hash = "sha256:5bb13e3eed2923615535339b3c620e76779af4cb4c6a90deccc9e36b274d3827", size = 23438, upload-time = "2025-12-20T14:08:52.782Z" },
-]
-
-[[package]]
-name = "openpyxl"
-version = "3.1.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "et-xmlfile" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/f9/88d94a75de065ea32619465d2f77b29a0469500e99012523b91cc4141cd1/openpyxl-3.1.5.tar.gz", hash = "sha256:cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050", size = 186464, upload-time = "2024-06-28T14:03:44.161Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl", hash = "sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2", size = 250910, upload-time = "2024-06-28T14:03:41.161Z" },
 ]
 
 [[package]]
@@ -1879,15 +1807,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/95/66/4d20cdf39a8d6a51e663b7038e3b828ff211d3891a43a713fe7e4643f3a8/starlette-1.1.0.tar.gz", hash = "sha256:e83c7fe0ddecd8719c5b840080325aec0260acec86e9832899e377b91d65e90f", size = 2660060, upload-time = "2026-05-23T16:55:41.376Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/93/79/920b8e0a8b20f793e8d64855095cb8febabf6175b8550b6f7a547d813891/starlette-1.1.0-py3-none-any.whl", hash = "sha256:7f0dfd38e428aad5cb6f9f667f0ca1d2d8ca3f3385dccac8305f79ec98458382", size = 72899, upload-time = "2026-05-23T16:55:39.201Z" },
-]
-
-[[package]]
-name = "tomli-w"
-version = "1.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/19/75/241269d1da26b624c0d5e110e8149093c759b7a286138f4efd61a60e75fe/tomli_w-1.2.0.tar.gz", hash = "sha256:2dd14fac5a47c27be9cd4c976af5a12d87fb1f0b4512f81d69cce3b35ae25021", size = 7184, upload-time = "2025-01-15T12:07:24.262Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/18/c86eb8e0202e32dd3df50d43d7ff9854f8e0603945ff398974c1d91ac1ef/tomli_w-1.2.0-py3-none-any.whl", hash = "sha256:188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90", size = 6675, upload-time = "2025-01-15T12:07:22.074Z" },
 ]
 
 [[package]]

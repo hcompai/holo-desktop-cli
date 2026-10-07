@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from holo_desktop.agent_client import desktop_lock
-from holo_desktop.agent_client.desktop_lock import desktop_turn
+from holo_desktop import desktop_lock
+from holo_desktop.desktop_lock import desktop_turn
 
 
 def test_desktop_turn_serializes_overlapping_holders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -58,7 +58,7 @@ def test_install_sh_has_supported_and_unsupported_platform_paths() -> None:
     assert 'path_line="export PATH=\\"$HOLO_HOME/bin:\\$PATH\\""' in text
     assert "--no-bin" in text
     assert "--reinstall-package holo-desktop-cli" in text
-    assert "python -m holo_desktop.installer_bootstrap --yes" in text
+    assert "python -m holo_desktop.installer_bootstrap" in text
     assert 'holo" setup' not in text
 
 
@@ -80,7 +80,7 @@ def test_install_ps1_targets_supported_windows_architectures_and_user_path() -> 
     assert '"--no-build-package", [string]$Dependency.name' in text
     assert "dependency_wheels" in text
     assert "sha256 mismatch for Windows ARM64 dependency" in text
-    assert "python -m holo_desktop.installer_bootstrap --yes" in text
+    assert "python -m holo_desktop.installer_bootstrap" in text
     assert 'holo.exe") setup' not in text
 
 
@@ -148,5 +148,5 @@ def test_holo_help_does_not_expose_installer_bootstrap() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "holo_desktop", "--help"], check=True, capture_output=True, text=True
     )
-    assert "{run,stop,guard,agent-api,mcp,install,login,whoami,doctor}" in result.stdout
+    assert "{run,stop,guard,mcp,install,login,logout,whoami,doctor}" in result.stdout
     assert "installer_bootstrap" not in result.stdout

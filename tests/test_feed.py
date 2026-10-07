@@ -9,7 +9,7 @@ import json
 from agp_types import TrajectoryEvent
 from rich.console import Console
 
-from holo_desktop.agent_client import events
+from holo_desktop import events
 from holo_desktop.terminal.feed import LiveFeed
 
 
