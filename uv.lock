@@ -689,34 +689,22 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.0.16"
-source = { url = "https://github.com/hcompai/hai-agents-python/archive/f4659fd142b236caefaf8310a1c69f6dd4fdcc6a.tar.gz" }
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { hash = "sha256:315288340f7f90de75ba3d6f8f93b4d06f6f33c0e2ebe4a3fd1b987deffe2db8" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/a7/77239def78712cdf42ce740932ca342ade190d9a174c0be0410cdf93f46c/hai_agents-1.2.0.tar.gz", hash = "sha256:577f74475ed44428a18e3e040a59249b67f287c1ad449e1d5b71d9af4c4aacc2", size = 1293882, upload-time = "2026-10-06T13:25:55.991Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/f1/c568c89fb4b672d83d768886d45b0fea9a47182f1ff64eb7e24580c0555c/hai_agents-1.2.0-py3-none-any.whl", hash = "sha256:4b66241ddb6021d61db74b1f72f56c9180fd172985f31620c5fff7f4bd7e4764", size = 283524, upload-time = "2026-10-06T13:25:54.364Z" },
+]
 
 [package.optional-dependencies]
 desktop = [
     { name = "hai-drivers", extra = ["desktop"] },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "hai-agents", extras = ["browser", "cli", "desktop", "workstation"], marker = "extra == 'all'" },
-    { name = "hai-drivers", extras = ["browser-cli", "cua-cli", "desktop-cli"], marker = "extra == 'workstation'", specifier = ">=0.1.9" },
-    { name = "hai-drivers", extras = ["desktop"], marker = "extra == 'desktop'", specifier = ">=0.1.3" },
-    { name = "hai-drivers", extras = ["web"], marker = "extra == 'browser'", specifier = ">=0.1.3" },
-    { name = "httpx", specifier = ">=0.23.0,<0.29.0" },
-    { name = "pydantic", specifier = ">=2.0,<3" },
-    { name = "python-dotenv", marker = "extra == 'cli'", specifier = ">=1.2.3,<2" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=15.0.0,<16" },
-    { name = "typer", marker = "extra == 'cli'", specifier = ">=0.27.2,<1" },
-    { name = "typing-extensions", specifier = ">=4.6" },
-]
-provides-extras = ["cli", "desktop", "browser", "workstation", "all"]
 
 [[package]]
 name = "hai-drivers"
@@ -779,7 +767,7 @@ requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], specifier = ">=1.0.3" },
     { name = "agent-client-protocol", specifier = ">=0.10" },
     { name = "hai-agent-api", specifier = ">=0.1.113" },
-    { name = "hai-agents", extras = ["desktop"], url = "https://github.com/hcompai/hai-agents-python/archive/f4659fd142b236caefaf8310a1c69f6dd4fdcc6a.tar.gz" },
+    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.2.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10,<2" },
     { name = "pydantic", specifier = ">=2.11.4" },
