@@ -1,15 +1,15 @@
 ---
 name: holo-desktop
-description: Sub-agent that drives the user's desktop in the foreground via H Company's Holo3 VLM, using the real cursor and keyboard. If direct Holo tools are not visible, search for holo_desktop tools. In NemoClaw, call holo_desktop_launch once, then poll the same run_id until it finishes, passing attached images/files as media_paths.
+description: Sub-agent that drives the user's desktop in the foreground via H Company's Holo VLM, using the real cursor and keyboard. If direct Holo tools are not visible, search for holo_desktop tools.
 ---
 
 # HoloDesktop CLI
 
-HoloDesktop CLI runs on the user's actual computer. Most hosts expose a single tool, `holo_desktop(task: str) -> str`; NemoClaw exposes `holo_desktop_launch`, `holo_desktop_poll`, and `holo_desktop_kill` because host desktop tasks can outlive the sandbox tool-call timeout. Each task sends Holo a single `task` string; it then runs a screenshot-and-act loop on the user's desktop, moving the real cursor and typing with the real keyboard until the task is done, the step or time budget is hit, or the run is cancelled. The user should not touch the mouse or keyboard while a task runs. It returns a single text answer.
+HoloDesktop CLI runs on the user's actual computer. Hosts expose a single tool, `holo_desktop(task: str) -> str`. Each task sends Holo a single `task` string; it then runs a screenshot-and-act loop on the user's desktop, moving the real cursor and typing with the real keyboard until the task is done, the step or time budget is hit, or the run is cancelled. The user should not touch the mouse or keyboard while a task runs. It returns a single text answer.
 
-In hosts with lazy tool discovery, such as NemoClaw, the only initially visible tool may be tool search. That is not a blocker. Search for `holo_desktop`, call `holo_desktop_launch` once, then call `holo_desktop_poll` with that same `run_id` until the status is `completed` or `failed`. If polling says the task is still running, poll the same `run_id` again immediately; HoloDesktop tasks can take around a minute, so keep polling rather than giving a provisional answer. Do not start another HoloDesktop task and do not ask the user to poll for you. For Telegram or other channel attachments, pass the local `media://...` path unchanged in `media_paths` and tell Holo to read the attached image or file. Do not replace an image task with typed OCR fields unless the user explicitly supplied those fields as the data to submit. Do not ask Holo to upload the attachment path unless the user or target page explicitly asks for an upload. For image-reading tasks such as receipt forms, tell Holo the attached host file is the source of truth and that it should open or preview that file if needed, rather than using stale images visible in chat history or browser tabs.
+In hosts with lazy tool discovery, the only initially visible tool may be tool search. That is not a blocker: search for `holo_desktop`.
 
-Holo is blind to the caller. It does not see the conversation, prior tool results, or earlier Holo calls. Everything it knows about the goal, the user, the situation, and what counts as success has to live in the `task` string. The caller is not a relay: it is the agent that holds context, does any synthesis, and hands Holo the part that requires actually clicking through a GUI. This is why passing the user's request verbatim is the wrong reflex — the user's wording usually elides everything they expect the calling agent to carry: which Slack workspace, who "Sarah" is, what they've been working on, what the answer should look like. Fold that in. The opposite reflex is also wrong: action verbs and message content the user actually supplied should be preserved, because Holo3 grounds well on natural human imperatives and small rewrites drift intent. Paraphrase by adding context, not by rephrasing the user's words.
+Holo is blind to the caller. It does not see the conversation, prior tool results, or earlier Holo calls. Everything it knows about the goal, the user, the situation, and what counts as success has to live in the `task` string. The caller is not a relay: it is the agent that holds context, does any synthesis, and hands Holo the part that requires actually clicking through a GUI. This is why passing the user's request verbatim is the wrong reflex — the user's wording usually elides everything they expect the calling agent to carry: which Slack workspace, who "Sarah" is, what they've been working on, what the answer should look like. Fold that in. The opposite reflex is also wrong: action verbs and message content the user actually supplied should be preserved, because Holo grounds well on natural human imperatives and small rewrites drift intent. Paraphrase by adding context, not by rephrasing the user's words.
 
 Holo's domain is work that happens on the user's machine: operating native apps (Finder, Mail, Calendar, Authy, Slack, Adobe, Obsidian, IDEs, conferencing apps), navigating system UI (Settings, menu bars, dialogs), interacting with the user's logged-in sessions in their own browser profile, and observing what is currently on the screen. It is not the right tool when the answer is already reachable from a web search, an API, or the calling agent's own knowledge; when the job is file-system, shell, or code work that doesn't need a GUI; or when the user wants something written or explained in the conversation rather than done on their machine.
 
@@ -35,15 +35,6 @@ User: *"grab my AWS code from Authy"*
 
     holo_desktop
       task: Open Authy and read the current 6-digit TOTP for the 'AWS' entry. Return just the 6 digits. Do not copy to clipboard.
-
-User: *"use this image with HoloDesktop to submit the expense form"*
-
-    holo_desktop_launch
-      task: Open the expense form and submit it using the attached receipt image. Treat the attached image file as the source of truth, open or preview it if needed, read the vendor, date, item, total, and category from that image, then return the saved confirmation.
-      media_paths: ["media://inbound/<receipt>.jpg"]
-
-    holo_desktop_poll
-      run_id: <returned run_id>
 
 User (after a long thread analyzing a paper): *"save this somewhere I'll find it"*
 

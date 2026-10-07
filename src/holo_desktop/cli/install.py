@@ -12,7 +12,7 @@ from holo_desktop.cli.hosts import (
     host_present,
     host_target,
     resolve_holo_command,
-    wire_host,
+    wire_mcp,
     wire_skill,
 )
 from holo_desktop.killswitch.autostart import AutostartResult, ensure_autostart
@@ -81,11 +81,11 @@ def install(
     err.print()
     failed = False
     for host_id, c in targets:
-        status, detail = wire_host(c)
+        status, detail = wire_mcp(c)
         glyph, color = STYLE[status]
         line = f"  {glyph} [bold cyan]{host_id:<{ID_WIDTH}}[/bold cyan]  [{color}]{detail}[/{color}]"
         skill_fatal = False
-        if c.wire is None and c.skills_dir is not None:
+        if c.skills_dir is not None:
             s_status, s_detail = wire_skill(c)
             skill_fatal = s_status.fatal
             if s_status.ok:

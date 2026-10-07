@@ -134,7 +134,6 @@ Each host gets the MCP server in its config, plus a [Skill](https://docs.claude.
 | `cursor`        | [Cursor](https://cursor.com)                                    | —                            |
 | `grok-build`    | [Grok Build](https://github.com/xai-org/grok-build) (xAI)       | `~/.grok/skills/`            |
 | `hermes`        | [Hermes](https://nousresearch.com)                              | —                            |
-| `nemoclaw`      | NemoClaw (sandbox bridge)                                       | —                            |
 | `openclaw`      | [OpenClaw](https://github.com/openclaw/openclaw)                | `~/.openclaw/skills/`        |
 | `opencode`      | [OpenCode](https://opencode.ai)                                 | `~/.config/opencode/skills/` |
 

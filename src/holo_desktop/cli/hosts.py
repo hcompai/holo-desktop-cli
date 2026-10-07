@@ -8,7 +8,6 @@ import platform
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path, PurePosixPath
@@ -65,7 +64,7 @@ def home_short(p: Path | str) -> str:
 
 @dataclass(frozen=True)
 class Client:
-    """One MCP host entry; heavyweight hosts can provide custom hooks."""
+    """One MCP host entry."""
 
     name: str
     config_path: str | None = None
@@ -74,21 +73,6 @@ class Client:
     leaf: dict[str, object] | None = None
     skills_dir: str | None = None  # under $HOME; None if host doesn't auto-load skills
     home_marker: str | None = None  # under $HOME; presence proves the host is installed
-    wire: Callable[[], tuple[Status, str]] | None = None
-    present: Callable[[], bool] | None = None
-    target: str | None = None
-
-
-def _wire_nemoclaw() -> tuple[Status, str]:
-    from holo_desktop.host_integrations.nemoclaw.install import wire_nemoclaw
-
-    return wire_nemoclaw()
-
-
-def _nemoclaw_present() -> bool:
-    from holo_desktop.host_integrations.nemoclaw.install import nemoclaw_present
-
-    return nemoclaw_present()
 
 
 def install_via_cli(cmd: list[str]) -> tuple[Status, str]:
@@ -172,13 +156,6 @@ def wire_mcp(c: Client) -> tuple[Status, str]:
     return Status.INSTALLED, home_short(path)
 
 
-def wire_host(c: Client) -> tuple[Status, str]:
-    """Wire a standard MCP host or delegate to a host-specific installer."""
-    if c.wire is not None:
-        return c.wire()
-    return wire_mcp(c)
-
-
 def _backup_config(path: Path) -> None:
     """Snapshot an existing host config beside it before we rewrite it, so a bad merge is recoverable."""
     if path.exists():
@@ -257,12 +234,6 @@ CLIENTS: dict[str, Client] = {
         skills_dir=".openclaw/skills",
         home_marker=".openclaw",
     ),
-    "nemoclaw": Client(
-        name="NemoClaw",
-        present=_nemoclaw_present,
-        target="default NemoClaw sandbox",
-        wire=_wire_nemoclaw,
-    ),
     "opencode": Client(
         name="OpenCode",
         config_path="~/.config/opencode/opencode.json",
@@ -316,8 +287,6 @@ def wire_skill(c: Client) -> tuple[Status, str]:
 
 
 def host_present(c: Client) -> bool:
-    if c.present is not None:
-        return c.present()
     home = Path.home()
     if c.home_marker and (home / c.home_marker).exists():
         return True
@@ -326,6 +295,4 @@ def host_present(c: Client) -> bool:
 
 def host_target(c: Client) -> str:
     """Where Holo's config lands for this host (~-path, or 'via CLI' for CLI-managed hosts)."""
-    if c.target is not None:
-        return c.target
     return home_short(c.config_path) if c.config_path else "via CLI"

@@ -226,31 +226,6 @@ def test_grok_build_cli_add_rewrites_binary_after_separator(
     assert argv[sep + 1 :] == [FAKE_HOLO, "mcp"]
 
 
-def test_custom_wire_host_delegates_without_generic_mcp_or_skill(sandbox_home: Path) -> None:
-    calls: list[str] = []
-    client = hosts.Client(
-        name="Custom",
-        skills_dir=".custom/skills",
-        wire=lambda: calls.append("wire") or (hosts.Status.INSTALLED, "custom wired"),
-    )
-
-    status, detail = hosts.wire_host(client)
-
-    assert status is hosts.Status.INSTALLED
-    assert detail == "custom wired"
-    assert calls == ["wire"]
-    assert not (sandbox_home / ".custom").exists()
-
-
-def test_nemoclaw_is_registered_as_custom_host() -> None:
-    client = hosts.CLIENTS["nemoclaw"]
-
-    assert client.wire is not None
-    assert client.target == "default NemoClaw sandbox"
-    assert client.config_path is None
-    assert hosts.host_target(client) == "default NemoClaw sandbox"
-
-
 # --------------------------------------------------------------------------- #
 # Skill auto-wire
 # --------------------------------------------------------------------------- #

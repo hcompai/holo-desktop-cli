@@ -13,6 +13,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 - A self-hosted `--base-url` now needs `--model`, the Holo version your server serves.
 - Removed `holo agent-api`, `holo stop --force`, and the `holo run` flags `--port`, `--runs-dir`, `--fake`, and `--profile`, plus the Linux guard autostart (the runtime ships for macOS and Windows only).
 - Removed the expense-report example.
+- Removed the NemoClaw host integration.
 
 ## [0.0.6] - 2026-09-22
 
