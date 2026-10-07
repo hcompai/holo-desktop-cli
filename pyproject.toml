@@ -53,14 +53,9 @@ holo = "holo_desktop.cli:main"
 [dependency-groups]
 dev = [
     "mypy>=1.13",
-    "pillow>=11.0",
     "pre-commit>=4.0",
-    # Live e2e harness (tests/e2e): synthetic input/screenshots + macOS AX evaluator reads.
-    "pyautogui>=0.9.54",
-    "pyobjc-framework-applicationservices>=10.0; sys_platform == 'darwin'",
     "pytest>=8.0",
     "pytest-cov>=5.0",
-    "pytest-timeout>=2.4.0",
     "ruff>=0.15.13",  # keep in sync with .pre-commit-config.yaml so make check matches the hook
     "types-pyyaml>=6.0",
 ]
@@ -112,7 +107,6 @@ no_implicit_reexport = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
-pythonpath = ["scripts"]
 
 [tool.coverage.run]
 source = ["holo_desktop"]

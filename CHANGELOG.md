@@ -14,6 +14,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 - Removed `holo agent-api`, `holo stop --force`, and the `holo run` flags `--port`, `--runs-dir`, `--fake`, and `--profile`, plus the Linux guard autostart (the runtime ships for macOS and Windows only).
 - Removed the expense-report example.
 - Removed the NemoClaw host integration.
+- Removed the live e2e harness and its workflows; agent evals run in agent-tasks.
 
 ## [0.0.6] - 2026-09-22
 
