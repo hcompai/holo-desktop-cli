@@ -5,7 +5,8 @@ import logging
 import signal
 import sys
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
+from hai_agents_common import credentials
 from hai_agents_common.credentials import current_api_key
 
 from holo_desktop.customization import HOLO_DIR, seed_bundled_skills
@@ -19,6 +20,15 @@ def load_holo_env() -> None:
     if LEGACY_ENV_PATH.exists():
         load_dotenv(LEGACY_ENV_PATH)
     load_dotenv()
+
+
+def key_source() -> str | None:
+    """Where the active API key comes from: `environment`, or the file that holds it."""
+    source = credentials.source()
+    legacy = dotenv_values(LEGACY_ENV_PATH).get("HAI_API_KEY") if LEGACY_ENV_PATH.exists() else None
+    if source == "environment" and legacy and legacy == current_api_key():
+        return str(LEGACY_ENV_PATH)
+    return source
 
 
 def bootstrap_interactive(*, base_url: str | None) -> None:
@@ -47,12 +57,9 @@ def ensure_guard_running() -> None:
 
 
 def bootstrap_stdio() -> None:
-    """Startup for the `holo mcp` stdio server: stderr-only logs, SIGTERM teardown, sign-in gate, guard."""
+    """Startup for the `holo mcp` stdio server: SIGTERM teardown, sign-in gate, guard."""
     from holo_desktop.task import resolve_target
 
-    logging.basicConfig(
-        level=logging.WARNING, stream=sys.stderr, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
     # A host killing the server sends SIGTERM; raising KeyboardInterrupt still runs async teardown.
     with contextlib.suppress(ValueError, OSError):
         signal.signal(signal.SIGTERM, signal.default_int_handler)

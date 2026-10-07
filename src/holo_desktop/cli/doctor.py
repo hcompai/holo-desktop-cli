@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import platform
 
-from hai_agents_common.credentials import source
 from hai_agents_local.desktop import ACCESSIBILITY_SETTINGS_URL, SCREEN_RECORDING_SETTINGS_URL
 from pydantic import BaseModel
 
 from holo_desktop import customization
-from holo_desktop.cli.bootstrap import load_holo_env
+from holo_desktop.cli.bootstrap import key_source, load_holo_env
 from holo_desktop.installer_bootstrap import find_runtime
 from holo_desktop.task import resolve_target
 
@@ -34,9 +33,9 @@ def check_login() -> CheckResult:
     base_url, model = resolve_target()
     if base_url:
         return CheckResult(name="login", ok=True, detail=f"self-hosted model {model or '(unset)'} at {base_url}")
-    key_source = source()
-    if key_source:
-        return CheckResult(name="login", ok=True, detail=f"API key from {key_source}")
+    source = key_source()
+    if source:
+        return CheckResult(name="login", ok=True, detail=f"API key from {source}")
     return CheckResult(name="login", ok=False, detail="no API key", fix="run `holo login`")
 
 

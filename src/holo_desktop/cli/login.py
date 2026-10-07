@@ -66,11 +66,8 @@ def logout() -> None:
 def whoami() -> None:
     """Print where the active API key comes from. Exits 1 if not signed in."""
     bootstrap.load_holo_env()
-    source = credentials.source()
+    source = bootstrap.key_source()
     if source is None:
         print("not signed in. Run `holo login`.", file=sys.stderr)
         raise SystemExit(1)
-    legacy = dotenv_values(bootstrap.LEGACY_ENV_PATH).get("HAI_API_KEY") if bootstrap.LEGACY_ENV_PATH.exists() else None
-    if source == "environment" and legacy and legacy == credentials.current_api_key():
-        source = str(bootstrap.LEGACY_ENV_PATH)
     print(f"signed in via {source}")

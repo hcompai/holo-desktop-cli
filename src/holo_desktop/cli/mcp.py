@@ -37,7 +37,7 @@ async def lifespan(_: FastMCP) -> AsyncIterator[AsyncClient]:
         await client.aclose()
 
 
-mcp_app = FastMCP("holo-desktop", instructions=INSTRUCTIONS, lifespan=lifespan)
+mcp_app = FastMCP("holo-desktop", instructions=INSTRUCTIONS, lifespan=lifespan, log_level="WARNING")
 mcp_app._mcp_server.version = __version__
 
 
