@@ -3,21 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import shutil
-from pathlib import Path
 
-from hai_agents_local.runtime import LocalRuntimeError
-from hai_agents_local.runtime.install import install_runtime, installed_binary, pinned_artifact
+from hai_agents_local.runtime import LocalRuntimeError, locate_runtime
+from hai_agents_local.runtime.install import install_runtime, pinned_artifact
 from hai_agents_local.runtime.manifest import PINNED_RUNTIME_VERSION
 from rich.console import Console
 
 from holo_desktop.customization import seed_bundled_skills
-
-
-def find_runtime() -> Path | None:
-    """The runtime the SDK will launch: `hai-agent-runtime` on PATH, else the managed install."""
-    on_path = shutil.which("hai-agent-runtime")
-    return Path(on_path) if on_path else installed_binary(PINNED_RUNTIME_VERSION)
 
 
 def bootstrap_installer(*, login: bool = False, install_hosts: bool = False) -> None:
@@ -25,7 +17,7 @@ def bootstrap_installer(*, login: bool = False, install_hosts: bool = False) -> 
     err = Console(stderr=True)
     seed_bundled_skills()
     try:
-        runtime_path = find_runtime() or install_runtime(pinned_artifact(), version=PINNED_RUNTIME_VERSION)
+        runtime_path = locate_runtime() or install_runtime(pinned_artifact(), version=PINNED_RUNTIME_VERSION)
     except LocalRuntimeError as exc:
         err.print(f"[bold red]x[/bold red] {exc}")
         raise SystemExit(1) from exc

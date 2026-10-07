@@ -25,6 +25,8 @@ INSTRUCTIONS = (
     "the context the user implied (which workspace, who 'Sarah' is, what counts as done), while "
     "preserving their action verbs and any message text verbatim. One task runs at a time per machine."
 )
+# Tool calls queue here: the SDK hands this process's desktop to the newest session, which would cut off the running one.
+_one_task_at_a_time = asyncio.Lock()
 
 
 @asynccontextmanager
@@ -61,7 +63,10 @@ async def holo_desktop(task: str, ctx: Context) -> str:
             await ctx.report_progress(progress=float(steps), message=f"step {steps}")
 
     _, model = resolve_target()
-    outcome = await run_task(client, build_agent(model=model), task, max_steps=None, max_time_s=None, on_event=forward)
+    async with _one_task_at_a_time:
+        outcome = await run_task(
+            client, build_agent(model=model), task, max_steps=None, max_time_s=None, on_event=forward
+        )
 
     elapsed = round(asyncio.get_running_loop().time() - started, 2)
     if outcome.status in SUCCESS_STATUSES:

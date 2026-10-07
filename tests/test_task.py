@@ -1,4 +1,4 @@
-"""Core task rules: events stream through, interruptions cancel the session, outcomes map to tool results."""
+"""Core task rules: events stream through, every session is released, MCP calls queue, outcomes map to tool results."""
 
 from __future__ import annotations
 
@@ -77,6 +77,7 @@ def test_run_task_streams_events_and_returns_the_outcome() -> None:
     assert [event.type for event in seen] == ["AgentEvent"]
     assert client.requests[0]["messages"] == "do it"
     assert client.requests[0]["max_steps"] == DEFAULT_MAX_STEPS
+    assert client.handle.cancelled
 
 
 def test_interrupted_task_cancels_the_session() -> None:
@@ -101,14 +102,37 @@ def test_agent_carries_user_customization_and_fast_disables_reasoning() -> None:
     assert (fast.reasoning_effort, fast.model) == ("disabled", "holo4-35b-a3b")
 
 
-def _call_tool(handle: FakeHandle) -> str:
+def _tool_ctx(handle: FakeHandle) -> SimpleNamespace:
     async def note(*args: Any, **kwargs: Any) -> None:
         pass
 
-    ctx = SimpleNamespace(
+    return SimpleNamespace(
         request_context=SimpleNamespace(lifespan_context=FakeClient(handle)), info=note, report_progress=note
     )
-    return asyncio.run(holo_desktop("do it", ctx))
+
+
+def _call_tool(handle: FakeHandle) -> str:
+    return asyncio.run(holo_desktop("do it", _tool_ctx(handle)))
+
+
+def test_parallel_mcp_calls_run_one_at_a_time() -> None:
+    active = peak = 0
+
+    class SlowHandle(FakeHandle):
+        async def stream(self) -> AsyncIterator[TrajectoryEvent]:
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0.01)
+            active -= 1
+            yield EVENT
+
+    async def both() -> None:
+        ctx = _tool_ctx(SlowHandle())
+        await asyncio.gather(holo_desktop("a", ctx), holo_desktop("b", ctx))
+
+    asyncio.run(both())
+    assert peak == 1
 
 
 def test_mcp_tool_returns_the_answer_and_raises_on_failure() -> None:

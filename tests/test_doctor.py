@@ -18,7 +18,7 @@ def skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (skills_dir / "demo").mkdir(parents=True)
     (skills_dir / "demo" / "SKILL.md").write_text("---\nname: demo\n---\n", encoding="utf-8")
     monkeypatch.setattr(customization, "SKILLS_DIR", skills_dir)
-    monkeypatch.setattr(doctor, "check_macos_grants", lambda: None)
+    monkeypatch.setattr(doctor, "check_desktop", lambda: doctor.CheckResult("desktop", True, "granted"))
     return skills_dir
 
 

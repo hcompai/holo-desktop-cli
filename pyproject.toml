@@ -30,14 +30,15 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp>=1.10,<2",
     "pydantic>=2.11.4",
-    # Double-Esc kill switch on Windows and Linux; macOS uses the SDK's Quartz tap.
-    "pynput>=1.7",
     "pyobjc-framework-quartz>=10.0; sys_platform == 'darwin'",
     "python-dotenv>=0.21",
     "pyyaml>=6.0",
     "rich>=13.0",
     "tyro>=0.8",
 ]
+
+[tool.uv.sources]
+hai-agents = { git = "https://github.com/hcompai/hai-agents-python", rev = "4f568ab9595de7e9d2c99cd3d473005d76a9310d" }
 
 [project.urls]
 Homepage = "https://hcompany.ai"

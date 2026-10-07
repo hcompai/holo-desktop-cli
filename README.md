@@ -123,6 +123,8 @@ holo install list          # see what's available
 Each host gets the MCP server in its config, plus a [Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) (where supported) that teaches the parent when to delegate to Holo.
 
 > **Interrupting a running task:** over MCP a Holo task blocks until it finishes — stopping the turn in the host (Cursor, Codex, ...) does not abort the run already executing on your machine; it keeps clicking until it completes, times out, or the host kills the server process. Stop it with a double `Esc` or `holo stop`.
+>
+> **One task at a time:** Holo drives one desktop, so parallel MCP calls queue and a second `holo run` exits while another task is driving.
 
 | id              | host                                                            | skill auto-load              |
 | --------------- | --------------------------------------------------------------- | ---------------------------- |

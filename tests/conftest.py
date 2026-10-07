@@ -10,7 +10,6 @@ from hai_agents_common import credentials
 from hai_agents_local.runtime.runtime import BASE_URL_ENV, BINARY_PATH_ENV
 from hai_agents_local.runtime.state import CACHE_DIR_ENV
 
-from holo_desktop import desktop_lock
 from holo_desktop.cli import bootstrap
 from holo_desktop.killswitch.autostart import AutostartResult
 from holo_desktop.task import BASE_URL_ENV as SELF_HOSTED_URL_ENV
@@ -23,13 +22,12 @@ install_mod = importlib.import_module("holo_desktop.cli.install")
 
 @pytest.fixture(autouse=True)
 def _isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """No test reads the developer's API key, runtime, or desktop lock."""
+    """No test reads the developer's API key or runtime."""
     monkeypatch.setenv(CACHE_DIR_ENV, str(tmp_path / "agent-runtime"))
     for name in (BINARY_PATH_ENV, BASE_URL_ENV, SELF_HOSTED_URL_ENV, MODEL_ENV, "HAI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(credentials, "GLOBAL_ENV_PATH", tmp_path / "hai" / ".env")
     monkeypatch.setattr(bootstrap, "LEGACY_ENV_PATH", tmp_path / "holo" / ".env")
-    monkeypatch.setattr(desktop_lock, "LOCK_PATH", tmp_path / "desktop.lock")
 
 
 @pytest.fixture(autouse=True)

@@ -569,15 +569,11 @@ wheels = [
 [[package]]
 name = "hai-agents"
 version = "1.2.1"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/hcompai/hai-agents-python?rev=4f568ab9595de7e9d2c99cd3d473005d76a9310d#4f568ab9595de7e9d2c99cd3d473005d76a9310d" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/10/66/59eca82eaba0302067cd46edf57442aae724621868d6647aaca6efb1931f/hai_agents-1.2.1.tar.gz", hash = "sha256:f34e794688c393a40571e9b54cfdd2dca0b9c6d525fe0296b593ff3855fa5919", size = 1294172, upload-time = "2026-10-07T20:26:06.396Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/c7/3e17723def5449a44725b2befaa9b810fb3903c063d9ffaffc23ccdca9ba/hai_agents-1.2.1-py3-none-any.whl", hash = "sha256:4c12de590525ec39210d1a6f995c483302829caac8e9a6cd37aeeb44f7121453", size = 283684, upload-time = "2026-10-07T20:26:04.327Z" },
 ]
 
 [package.optional-dependencies]
@@ -614,7 +610,6 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
-    { name = "pynput" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -635,11 +630,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "hai-agent-api", specifier = ">=0.1.113" },
-    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.2.1" },
+    { name = "hai-agents", extras = ["desktop"], git = "https://github.com/hcompai/hai-agents-python?rev=4f568ab9595de7e9d2c99cd3d473005d76a9310d" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10,<2" },
     { name = "pydantic", specifier = ">=2.11.4" },
-    { name = "pynput", specifier = ">=1.7" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
     { name = "python-dotenv", specifier = ">=0.21" },
     { name = "pyyaml", specifier = ">=6.0" },

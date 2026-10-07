@@ -10,16 +10,17 @@ from dataclasses import dataclass
 
 from agp_types import TrajectoryEvent
 from hai_agents import Agent, AsyncClient
+from hai_agents_local.desktop_lock import DesktopBusyError
 from hai_agents_local.runtime import Inference
 
 from holo_desktop import customization
-from holo_desktop.desktop_lock import desktop_turn
 
 BASE_URL_ENV = "HAI_AGENT_RUNTIME_BASE_URL"
 MODEL_ENV = "HAI_AGENT_RUNTIME_MODEL"
 DEFAULT_MAX_STEPS = 150
 DEFAULT_MAX_TIME_S = 1800.0
 SUCCESS_STATUSES = frozenset({"completed", "idle"})
+DESKTOP_BUSY = "another agent is driving this desktop; wait for it to finish or stop it with `holo stop`"
 
 
 @dataclass(frozen=True)
@@ -68,21 +69,25 @@ async def run_task(
     max_time_s: float | None,
     on_event: Callable[[TrajectoryEvent], Awaitable[None]],
 ) -> Outcome:
-    """Run `task` until it settles, streaming each event to `on_event`; cancels the session if interrupted."""
-    async with desktop_turn():
+    """Run `task` until it settles, streaming each event to `on_event`, then end the session either way."""
+    try:
         handle = await client.start_session(
             agent=agent,
             messages=task,
             max_steps=max_steps or DEFAULT_MAX_STEPS,
             max_time_s=max_time_s or DEFAULT_MAX_TIME_S,
         )
-        try:
-            async for event in handle.stream():
-                await on_event(TrajectoryEvent.model_validate(event.model_dump(mode="json")))
-            result = await handle.wait_for_completion()
-        except BaseException:
-            with contextlib.suppress(Exception):
-                await asyncio.shield(handle.cancel())
-            raise
+    except RuntimeError as exc:
+        if isinstance(exc.__cause__, DesktopBusyError):
+            raise DesktopBusyError(DESKTOP_BUSY) from exc
+        raise
+    try:
+        async for event in handle.stream():
+            await on_event(TrajectoryEvent.model_validate(event.model_dump(mode="json")))
+        result = await handle.wait_for_completion()
+    finally:
+        # A one-shot task that settles idle would otherwise keep its bridge, and the machine's desktop claim.
+        with contextlib.suppress(Exception):
+            await asyncio.shield(handle.cancel())
     answer = "" if result.answer is None else result.answer if isinstance(result.answer, str) else str(result.answer)
     return Outcome(status=str(result.status), answer=answer, error=result.error)
