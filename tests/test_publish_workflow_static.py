@@ -71,15 +71,8 @@ def test_release_builds_and_materializes_the_windows_arm64_dependency() -> None:
     assert '-Filter "$DependencyName-*-win_arm64.whl"' in build_script
 
 
-def test_client_release_refuses_placeholder_runtime_and_smokes_windows_arm64() -> None:
+def test_client_release_smokes_windows_arm64() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8"))
-    build_steps = workflow["jobs"]["build"]["steps"]
-    gate = next(
-        step for step in build_steps if step.get("name") == "assert every managed runtime artifact is published"
-    )
-    assert gate["if"] == "startsWith(github.ref, 'refs/tags/v')"
-    assert "'=0{64}$' shas/*.txt" in gate["run"]
-
     smoke = workflow["jobs"]["smoke-windows-arm64-installer-cdn"]
     assert smoke["needs"] == "publish-installer-cdn"
     assert smoke["runs-on"] == "windows-11-arm"
@@ -95,8 +88,6 @@ def test_windows_arm64_installer_scaffolding() -> None:
     assert installer["runs-on"] == "windows-11-arm"
     rendered_installer = yaml.safe_dump(installer, sort_keys=True)
     assert "install.ps1" in rendered_installer
-    assert "windows-arm64.txt" in rendered_installer
-    assert "HOLO_INSTALL_SKIP_RUN_SETUP" in rendered_installer
     assert "build_windows_arm64_dependency_wheel.ps1" in rendered_installer
     assert "steps.dependency.outputs.manifest_path" in rendered_installer
     assert "steps.client.outputs.wheel_path" in rendered_installer
@@ -147,4 +138,4 @@ def test_windows_arm64_candidate_is_verified_and_consumed_before_merge() -> None
     assert "HAI_AGENT_RUNTIME_DOWNLOAD_URL" in installer_run["run"]
     assert "HAI_AGENT_RUNTIME_DOWNLOAD_SHA256" in installer_run["run"]
     assert "http.server" in installer_run["run"]
-    assert "$runtimeSha -notmatch" in installer_run["run"] and "$hasCandidate" in installer_run["run"]
+    assert "$hasCandidate" in installer_run["run"]

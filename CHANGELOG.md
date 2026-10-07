@@ -11,7 +11,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 - `holo login` saves the key to `~/.config/hai/.env`, shared with the `hai` CLI; a key in `~/.holo/.env` still works. Added `holo logout` and `holo login --key`.
 - `--fast` now only disables model reasoning.
 - A self-hosted `--base-url` now needs `--model`, the Holo version your server serves.
-- Removed `holo agent-api`, `holo stop --force`, and the `holo run` flags `--port`, `--runs-dir`, `--fake`, and `--profile`, plus the Linux guard autostart (the runtime ships for macOS and Windows only).
+- Removed `holo agent-api`, `holo stop --force`, and the `holo run` flags `--port`, `--runs-dir`, `--fake`, and `--profile`.
 - Removed the expense-report example.
 - Removed the NemoClaw host integration.
 - Removed the live e2e harness and its workflows; agent evals run in agent-tasks.

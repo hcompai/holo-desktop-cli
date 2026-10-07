@@ -60,13 +60,8 @@ jobs:
           HAI_RUNTIME_CANDIDATE_SHA256: ${{ steps.runtime_candidate.outputs.sha256 }}
         run: |
           $ErrorActionPreference = "Stop"
-          $runtimeSha = ((Get-Content shas/windows-arm64.txt).Trim() -split "=", 2)[1]
           $installerPath = (Resolve-Path .\install\install.ps1).Path
           $hasCandidate = [bool]$env:HAI_RUNTIME_CANDIDATE_ARCHIVE
-          if ($runtimeSha -match "^0{64}$" -and -not $hasCandidate) {
-            $env:HOLO_INSTALL_SKIP_RUN_SETUP = "1"
-            Write-Host "Runtime artifact is pending; validating the native CLI installer only."
-          }
 
           $server = $null
           try {
@@ -107,11 +102,9 @@ jobs:
             }
           }
 
-          if ($runtimeSha -notmatch "^0{64}$" -or $hasCandidate) {
-            $runtime = Get-ChildItem "$HOME\.holo\runtime\*\hai-agent-runtime.exe" | Select-Object -First 1
-            if ($null -eq $runtime) {
-              throw "installer completed without a managed Windows ARM64 runtime"
-            }
+          $runtime = Get-ChildItem -Recurse -Filter hai-agent-runtime.exe "$HOME\.hai\agent-runtime\bin" | Select-Object -First 1
+          if ($null -eq $runtime) {
+            throw "installer completed without a managed Windows ARM64 runtime"
           }
       - name: Upload the exact installer candidate
         if: always()
@@ -131,11 +124,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pinned="$(sed -nE 's/^PINNED_RUNTIME_VERSION = "([^"]+)"$/\1/p' src/holo_desktop/agent_client/runtime_install.py)"
-          test -n "$pinned"
           docker run --rm --platform linux/amd64 \
             -v "$GITHUB_WORKSPACE:/work:ro" \
-            -e "PINNED_RUNTIME_VERSION=$pinned" \
             -w /tmp \
             ubuntu:22.04 \
             bash -c '
@@ -147,7 +137,6 @@ jobs:
               printf "holo ALL=(ALL) NOPASSWD:ALL\n" >/etc/sudoers.d/holo
               sudo -u holo env \
                 HOME=/home/holo \
-                PINNED_RUNTIME_VERSION="$PINNED_RUNTIME_VERSION" \
                 HOLO_HOME=/home/holo/.holo-install \
                 HOLO_INSTALL_MANIFEST_URL=file:///work/install/manifest.json \
                 HOLO_INSTALL_PACKAGE=/work \
@@ -157,7 +146,7 @@ jobs:
                   cd /tmp
                   curl -fsSL file:///work/install/install.sh | bash
                   \"\$HOLO_HOME/bin/holo\" --help >/dev/null
-                  test -x \"\$HOME/.holo/runtime/\$PINNED_RUNTIME_VERSION/hai-agent-runtime\"
+                  find \"\$HOME/.hai/agent-runtime/bin\" -name hai-agent-runtime -type f -perm -u+x | grep -q .
                 "
               test -e /usr/include/linux/input.h
             '

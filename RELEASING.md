@@ -4,9 +4,7 @@
 
 ## Runtime artifacts
 
-The client downloads the pinned `hai-agent-runtime` binary on first run. Artifacts are published to an immutable, version-scoped CDN prefix (`https://assets.hcompanyprod.fr/hai-agent-runtime/<version>/hai-agent-runtime-<platform>.zip`) and are never overwritten, so a CDN edge can never serve stale bytes for an already-published version.
-
-Bumping the pinned runtime is a two-field change in `src/holo_desktop/agent_client/runtime_install.py`: `PINNED_RUNTIME_VERSION` and the per-platform `sha256` digests in `MANIFEST` (the URL is derived from the version). H Company's runtime release pipeline builds the binary, uploads it under the versioned prefix, and opens the bump PR here; merging it and cutting a `v*` tag ships the new runtime with the next client release.
+The [`hai-agents`](https://pypi.org/project/hai-agents/) SDK pins the `hai-agent-runtime` version and its per-platform sha256 digests, and downloads the binary on first run. To ship a new runtime, release an SDK that pins it, then raise the `hai-agents` floor in `pyproject.toml`.
 
 ## One-time setup (PyPI side)
 

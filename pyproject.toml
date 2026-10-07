@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "holo-desktop-cli"
 version = "0.0.6"
-description = "H Company's desktop agent on your machine: drives real macOS and Windows apps. A thin shell over the hai-agents SDK local mode."
+description = "H Company's desktop agent on your machine: drives real macOS, Linux, and Windows apps. A thin shell over the hai-agents SDK local mode."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
@@ -16,6 +16,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -29,7 +30,7 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp>=1.10,<2",
     "pydantic>=2.11.4",
-    # Double-Esc kill switch on Windows; macOS uses the SDK's Quartz tap.
+    # Double-Esc kill switch on Windows and Linux; macOS uses the SDK's Quartz tap.
     "pynput>=1.7",
     "pyobjc-framework-quartz>=10.0; sys_platform == 'darwin'",
     "python-dotenv>=0.21",

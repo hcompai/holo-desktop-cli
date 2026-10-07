@@ -1,4 +1,4 @@
-"""Double-Esc kill switch: the SDK's Quartz tap on macOS, a pynput listener on Windows; both file the SDK stop."""
+"""Double-Esc kill switch: the SDK's Quartz tap on macOS, a pynput listener elsewhere; both file the SDK stop."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from hai_agents_local.killswitch import MultiTapDetector, arm_esc_listener, requ
 
 ARMED_HINT = "kill switch armed: press Esc twice fast to stop"
 UNAVAILABLE_HINT = (
-    "double-Esc kill switch unavailable; grant Input Monitoring to this terminal in "
-    "System Settings → Privacy & Security, or stop with `holo stop`"
+    "double-Esc kill switch unavailable (macOS: grant Input Monitoring to this terminal in "
+    "System Settings → Privacy & Security; Wayland has no global listener); stop with `holo stop`"
 )
 
 
@@ -26,7 +26,7 @@ def arm() -> Listener | None:
     system = platform.system()
     if system == "Darwin":
         return arm_esc_listener()
-    if system == "Windows":
+    if system in ("Windows", "Linux"):
         return _arm_pynput()
     return None
 
@@ -46,6 +46,9 @@ def _arm_pynput() -> Listener | None:
             request_stop()
 
     listener = keyboard.Listener(on_press=on_press)
-    listener.start()
-    listener.wait()
+    try:
+        listener.start()
+        listener.wait()
+    except Exception:
+        return None
     return listener if listener.running else None

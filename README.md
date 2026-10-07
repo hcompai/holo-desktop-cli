@@ -75,7 +75,7 @@ holo stop          # cancel the running task (same as double-Esc)
 holo guard         # run the listener yourself in the foreground (e.g. if you skipped holo install)
 ```
 
-All three write a timestamp to `~/.config/hai/stop`; a running task cancels when it sees a stop filed after it started, so a stale stop never kills the next task. The guard only inspects `Esc` timing, never keystroke content, but it holds Input Monitoring while installed. Disable the embedded listener for one run with `holo run --no-kill-switch`.
+All three write a timestamp to `~/.config/hai/stop`; a running task cancels when it sees a stop filed after it started, so a stale stop never kills the next task. The guard only inspects `Esc` timing, never keystroke content, but it holds Input Monitoring while installed. Disable the embedded listener for one run with `holo run --no-kill-switch`. Wayland (Linux) has no global key listener; bind `holo stop` to a compositor hotkey.
 
 ## Use from Python
 

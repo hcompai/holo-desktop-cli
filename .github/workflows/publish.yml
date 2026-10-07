@@ -35,7 +35,7 @@ jobs:
         run: uv run mypy src/
       - name: smoke imports
         run: |
-          uv run python -c "import holo_desktop.cli; from holo_desktop import __version__; from holo_desktop.agent_client import AgentApiClient, SpawnConfig, ensure_running; print(__version__)"
+          uv run python -c "import holo_desktop.cli; from holo_desktop import __version__; import holo_desktop.task; print(__version__)"
 
   windows-arm64-dependency:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -88,15 +88,6 @@ jobs:
           pkg=$(uv run --no-project python -c "import tomllib,sys; print(tomllib.loads(open('pyproject.toml','rb').read().decode())['project']['version'])")
           if [ "$tag" != "$pkg" ]; then
             echo "tag v$tag does not match pyproject version $pkg" >&2
-            exit 1
-          fi
-      - name: assert every managed runtime artifact is published
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -H -E '=0{64}$' shas/*.txt; then
-            echo "A managed runtime platform still has a placeholder SHA; refusing a client release." >&2
             exit 1
           fi
       - run: uv build
