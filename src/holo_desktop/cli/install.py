@@ -33,9 +33,9 @@ _GUARD_STATUS: dict[AutostartResult, Status] = {
 }
 ID_WIDTH = max(len(host_id) for host_id in CLIENTS)
 
-# `holo install` wires the MCP server into hosts for you; these are the raw stdio
-# servers a host config invokes. Typing them as an install target is a common slip.
-PROTOCOL_WORDS = ("mcp", "acp")
+# `holo install` wires the MCP server into hosts for you; this is the raw stdio
+# server a host config invokes. Typing it as an install target is a common slip.
+PROTOCOL_WORDS = ("mcp",)
 
 
 def install(

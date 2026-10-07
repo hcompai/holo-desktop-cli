@@ -4,7 +4,7 @@ Every host config and skill dir is sandboxed under a tmp ``$HOME``; the real
 `holo` binary is faked. The three wiring strategies (JSON merge, YAML merge,
 CLI add) and the skill symlink are exercised against a real filesystem, and the
 `install()` dispatcher's invocation matrix (one host, all detected, list,
-unknown, the `mcp`/`acp` redirects) is checked end to end including exit codes.
+unknown, the `mcp` redirect) is checked end to end including exit codes.
 """
 
 from __future__ import annotations
@@ -349,16 +349,15 @@ def test_install_unknown_host_exits_2(sandbox_home: Path, capsys: pytest.Capture
     assert "unknown host" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("alias", ["mcp", "acp"])
-def test_install_protocol_word_redirects(sandbox_home: Path, capsys: pytest.CaptureFixture[str], alias: str) -> None:
-    # `holo install mcp` / `holo install acp` are a natural mistype; they must
-    # not read as a bare "unknown host" but point at the real commands.
+def test_install_protocol_word_redirects(sandbox_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # `holo install mcp` is a natural mistype; it must not read as a bare
+    # "unknown host" but point at the real commands.
     with pytest.raises(SystemExit) as exc:
-        install_mod.install(alias)
+        install_mod.install("mcp")
     err = capsys.readouterr().err
     assert exc.value.code == 2
     assert "unknown host" not in err
-    assert f"holo {alias}" in err
+    assert "holo mcp" in err
     assert "holo install <host>" in err or "holo install list" in err
 
 

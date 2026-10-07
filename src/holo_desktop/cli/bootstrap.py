@@ -70,7 +70,7 @@ def require_api_key(*, explicit_base_url: str | None = None, settings: HoloSetti
 
 
 def require_api_key_stdio(*, settings: HoloSettings) -> None:
-    """Non-interactive credential gate for stdio servers (mcp/acp), failing fast with a `holo login` pointer."""
+    """Non-interactive credential gate for the `holo mcp` stdio server, failing fast with a `holo login` pointer."""
     if settings.auth.api_key or settings.runtime.base_url or settings.runtime.fake:
         return
     print(
@@ -82,7 +82,7 @@ def require_api_key_stdio(*, settings: HoloSettings) -> None:
 
 
 def configure_stdio_logging(logger_name: str) -> None:
-    """Stderr WARNING+ logging shared by stdio servers (`holo mcp`, `holo acp`)."""
+    """Stderr WARNING+ logging for the `holo mcp` stdio server."""
     logging.basicConfig(
         level=logging.WARNING,
         stream=sys.stderr,
@@ -92,7 +92,7 @@ def configure_stdio_logging(logger_name: str) -> None:
 
 
 def bootstrap_interactive(*, base_url: str | None, fake: bool) -> HoloSettings:
-    """Shared startup for the interactive surfaces (`holo run`, `holo serve`)."""
+    """Shared startup for the interactive `holo run`."""
     load_holo_env()
     settings = load_holo_settings()
     if not fake:
@@ -104,7 +104,7 @@ def bootstrap_interactive(*, base_url: str | None, fake: bool) -> HoloSettings:
 def ensure_guard_running() -> None:
     """Best-effort: nudge an already-installed kill-switch guard to load (headless surfaces).
 
-    Headless surfaces (`holo mcp` under a host, `holo serve`, `holo acp`) have no interactive process
+    The headless surface (`holo mcp` under a host) has no interactive process
     to host a listener, so the OS-launched guard is what makes the double-Esc stop reachable. The guard
     is installed by `holo install`; here we only load it if present, never install it behind the scenes.
     """
@@ -125,7 +125,7 @@ def install_sigterm_graceful() -> None:
 
 
 def bootstrap_stdio(logger_name: str) -> HoloSettings:
-    """Shared startup for the stdio servers (`holo mcp`, `holo acp`)."""
+    """Shared startup for the `holo mcp` stdio server."""
     configure_stdio_logging(logger_name)
     install_sigterm_graceful()
     load_holo_env()

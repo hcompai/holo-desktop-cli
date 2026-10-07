@@ -178,7 +178,7 @@ def run(
                 # Attached runtime: aclose() was a no-op, so a retry reuses the same process and grants stay unlatched.
                 err.print(
                     f"[yellow]→[/yellow] [dim]permission grants only apply after a runtime restart, but the "
-                    f"runtime on port {resolved_port} was started by another Holo process (e.g. holo serve or "
+                    f"runtime on port {resolved_port} was started by another Holo process (e.g. "
                     "holo mcp). Restart that process so the grants latch, or pass --port to spawn a fresh "
                     "runtime here.[/dim]"
                 )
@@ -219,8 +219,7 @@ def run(
     if not quiet:
         err.print(
             Panel(
-                "Holo also runs inside your other agents: [cyan]holo install[/cyan] (MCP hosts) · "
-                "[cyan]holo acp[/cyan] (ACP hosts) · [cyan]holo serve[/cyan] (A2A server)",
+                "Holo also runs inside your other agents: [cyan]holo install[/cyan] (MCP hosts)",
                 border_style="dim",
                 expand=False,
                 padding=(0, 2),

@@ -34,7 +34,7 @@ make check       # ruff + ruff-format --check + mypy + pytest
 ```
 src/holo_desktop/
   agent_client/      launcher + async HTTP client for the hai-agent-runtime agent API
-  cli/               `holo` CLI: run, serve, agent-api, mcp, acp, install, login, whoami, doctor
+  cli/               `holo` CLI: run, agent-api, mcp, install, login, whoami, doctor
   customization.py   ~/.holo user state (agents.md, memories, rules, skills)
   skills/            bundled SKILL.md, seeded into ~/.holo/skills on first run
   host_skills/       SKILL.md that `holo install` symlinks into MCP hosts

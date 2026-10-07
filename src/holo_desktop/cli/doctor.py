@@ -93,7 +93,7 @@ def check_holo_dir(settings: HoloSettings) -> CheckResult:
             name="holo-dir",
             ok=False,
             detail=f"no skills in {customization.SKILLS_DIR}{log_note}",
-            fix="bundled skills seed automatically on the first `holo run` / `holo serve` / `holo mcp` / `holo acp`",
+            fix="bundled skills seed automatically on the first `holo run` / `holo mcp`",
         )
     return CheckResult(name="holo-dir", ok=True, detail=f"{len(skills)} skill(s) seeded{log_note}")
 
@@ -121,7 +121,7 @@ def permissions_guidance(port: int) -> str | None:
     if missing:
         lines.append(
             f"This terminal lacks [bold]{' and '.join(missing)}[/bold]. Holo drives the desktop from the app "
-            "that runs it (this terminal, or your MCP/ACP host): grant that app, then restart it."
+            "that runs it (this terminal, or your MCP host): grant that app, then restart it."
         )
     if log_tail_suggests_permissions(port):
         lines.append(

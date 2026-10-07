@@ -86,15 +86,12 @@ def test_first_turn_creates_session_with_budgets() -> None:
     client = FakeApiClient(FakeStream([], status=TrajectoryStatus.COMPLETED, answer="done"))
     session = Session()
 
-    outcome = asyncio.run(
-        run_turn(client, session, "do the thing", max_steps=7, max_time_s=60.0, idle_timeout_s=120, on_event=_collect)
-    )
+    outcome = asyncio.run(run_turn(client, session, "do the thing", max_steps=7, max_time_s=60.0, on_event=_collect))
 
     assert session.session_id == SESSION_ID
     assert len(client.created) == 1
     assert client.created[0].max_steps == 7
     assert client.created[0].max_time_s == 60.0
-    assert client.created[0].idle_timeout_s == 120
     assert client.sent == []
     assert outcome.status == TrajectoryStatus.COMPLETED
     assert outcome.answer == "done"

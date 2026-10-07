@@ -1,4 +1,4 @@
-"""Behavioural test: `holo mcp` must load ``~/.holo/.env`` like acp/run/serve do.
+"""Behavioural test: `holo mcp` must load ``~/.holo/.env`` like run does.
 
 A port (or token) stored in ``~/.holo/.env`` works for every other surface via
 ``load_holo_env()``; mcp skipping it would silently ignore the user's config.

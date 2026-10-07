@@ -168,7 +168,7 @@ def test_stop_during_setup_has_no_session_to_report() -> None:
 
 def test_stop_forgets_session_so_next_turn_starts_fresh() -> None:
     """A kill-switch stop must reset the session, so the next turn creates a new one instead of
-    messaging into the just-cancelled session (the reuse bug on ACP / holo serve)."""
+    messaging into the just-cancelled session."""
 
     async def go() -> None:
         stream = _FakeStream(

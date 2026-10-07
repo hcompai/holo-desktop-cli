@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
 authors = [{ name = "H Company", email = "contact@hcompany.ai" }]
-keywords = ["agent", "vlm", "holo3", "desktop-automation", "computer-use", "mcp", "acp", "h-company"]
+keywords = ["agent", "vlm", "holo3", "desktop-automation", "computer-use", "mcp", "h-company"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -28,9 +28,6 @@ dependencies = [
     # hai-agent-runtime binary; the wheel vendors agent_interface + agp_types as the only source of the spec types.
     "hai-agent-api>=0.1.113",
     "hai-agents[desktop]>=1.2.0",
-    # CLI / serve (A2A) / acp / mcp adapter surface.
-    "a2a-sdk[http-server]>=1.0.3",
-    "agent-client-protocol>=0.10",
     "httpx>=0.28.1",
     "mcp>=1.10,<2",
     "pydantic>=2.11.4",
@@ -114,7 +111,7 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.12"
 files = ["src"]
-ignore_missing_imports = true       # a2a.* has no stubs
+ignore_missing_imports = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_unreachable = true
@@ -122,11 +119,6 @@ disallow_untyped_defs = false       # start permissive; tighten in follow-ups
 check_untyped_defs = true
 strict_equality = true
 no_implicit_reexport = false
-
-[[tool.mypy.overrides]]
-module = ["a2a.*"]
-ignore_errors = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

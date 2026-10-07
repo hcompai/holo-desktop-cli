@@ -4,6 +4,10 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+- Removed `holo acp` and `holo serve` (A2A). Agent hosts reach Holo through `holo mcp`; wire one with `holo install`.
+
 ## [0.0.6] - 2026-09-22
 
 - Fixed `holo run` requiring `HAI_API_KEY` when a runtime base URL is configured through the environment.

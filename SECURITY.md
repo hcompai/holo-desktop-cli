@@ -19,7 +19,7 @@ Holo is pre-1.0 and moving fast, so security fixes land on the latest released v
 
 ## What's in scope
 
-This repository is the **Apache-2.0-licensed `holo-desktop-cli` client**: the CLI and the MCP / ACP / A2A surfaces that launch and drive the agent. The agent itself runs inside the closed `hai-agent-runtime` binary, and the two talk over the open [`hai-agent-api`](https://pypi.org/project/hai-agent-api/) contract.
+This repository is the **Apache-2.0-licensed `holo-desktop-cli` client**: the CLI and the MCP server that launch and drive the agent. The agent itself runs inside the closed `hai-agent-runtime` binary, and the two talk over the open [`hai-agent-api`](https://pypi.org/project/hai-agent-api/) contract.
 
 Report client vulnerabilities here. Issues in the runtime binary or the hosted H Company service reach us through the same channels above, so when in doubt, just send it.
 

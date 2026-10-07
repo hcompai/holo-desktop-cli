@@ -12,19 +12,11 @@ from holo_desktop.cli.guard import guard
 from holo_desktop.cli.install import install
 from holo_desktop.cli.login import login
 from holo_desktop.cli.run import run
-from holo_desktop.cli.serve import serve
 from holo_desktop.cli.stop import stop
 from holo_desktop.cli.whoami import whoami
 
-# Lazy wrappers: keep the heavy ACP/MCP SDK imports off every `holo` invocation.
-# Docstrings mirror the real entrypoints; tyro reads them for `holo --help`.
-
-
-def acp() -> None:
-    """Run as a stdio ACP server. Spawns the hai-agent-runtime binary on first use."""
-    from holo_desktop.cli.acp import acp as _acp
-
-    _acp()
+# Lazy wrapper: keeps the heavy MCP SDK import off every `holo` invocation.
+# The docstring mirrors the real entrypoint; tyro reads it for `holo --help`.
 
 
 def mcp() -> None:
@@ -50,10 +42,8 @@ def main() -> None:
             "run": run,
             "stop": stop,
             "guard": guard,
-            "serve": serve,
             "agent-api": agent_api,
             "mcp": mcp,
-            "acp": acp,
             "install": install,
             "login": login,
             "whoami": whoami,

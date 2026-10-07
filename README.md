@@ -11,7 +11,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
 </p>
 
-Tell your computer what to do. Holo gets it done. `holo-desktop-cli` is the open-source client for [Holo3](https://huggingface.co/Hcompany/Holo3-35B-A3B), H Company's open-weight vision-language model. It launches the agent and fronts it as a CLI, MCP, ACP, and A2A surface. Use the hosted API, or run everything on your own machine for full privacy.
+Tell your computer what to do. Holo gets it done. `holo-desktop-cli` is the open-source client for [Holo3](https://huggingface.co/Hcompany/Holo3-35B-A3B), H Company's open-weight vision-language model. It launches the agent and fronts it as a CLI and an MCP server. Use the hosted API, or run everything on your own machine for full privacy.
 
 **Docs:** The [HoloDesktop CLI docs](https://hub.hcompany.ai/holo-desktop-cli) cover setup guides, run examples, debugging advice, integration guides, and the full CLI reference.
 
@@ -19,7 +19,7 @@ Tell your computer what to do. Holo gets it done. `holo-desktop-cli` is the open
 
 Holo is three parts:
 
-- **This repo, `holo-desktop-cli`,** is the [Apache-2.0-licensed](LICENSE) client: the CLI plus the MCP / ACP / A2A surfaces. It launches the agent and drives it over loopback.
+- **This repo, `holo-desktop-cli`,** is the [Apache-2.0-licensed](LICENSE) client: the CLI plus the MCP server. It launches the agent and drives it over loopback.
 - **The agent** runs inside H Company's `hai-agent-runtime` binary. That binary is closed-source and downloads itself on first run (sha256-verified).
 - **The contract between them** is the open [`hai-agent-api`](https://pypi.org/project/hai-agent-api/) package, so what the client sends is fully inspectable.
 
@@ -50,14 +50,12 @@ On first run:
 3. Your browser opens to sign in at [portal.hcompany.ai](https://portal.hcompany.ai). Skip with `--base-url` for a local model.
 4. macOS only: grant the agent runtime *Accessibility* and *Screen Recording* in *System Settings → Privacy & Security* when prompted.
 
-## Four ways to use Holo
+## Two ways to use Holo
 
 | Surface | Command | When |
 | ------- | ------- | ---- |
 | CLI     | `holo run "task"` | One-shot tasks from your terminal |
 | MCP     | `holo install`, or `holo mcp` in your host's config | Delegate from Claude Code, Cursor, Codex, ... |
-| ACP     | `holo acp` | [ACP](https://agentclientprotocol.com) hosts (Hermes, OpenClaw, Zed, ...) |
-| A2A     | `holo serve` | An [A2A](https://a2a-protocol.org) HTTP server on `127.0.0.1` for your own agents |
 
 See the [CLI reference](https://hub.hcompany.ai/holo-desktop-cli/reference/cli) or `holo run --help` for all flags.
 
@@ -68,7 +66,7 @@ Once the agent is driving the screen it's hard to take back control. Holo gives 
 | Where you're running | What watches for the double-`Esc` |
 | -------------------- | --------------------------------- |
 | `holo run` (interactive terminal) | A listener embedded in the run; armed automatically (first use prompts for macOS Input Monitoring). |
-| `holo mcp` / `holo acp` / `holo serve` (headless) | The always-on `holo guard`, installed by `holo install` and launched by the OS so it has its own permission identity. |
+| `holo mcp` (headless) | The always-on `holo guard`, installed by `holo install` and launched by the OS so it has its own permission identity. |
 
 You can also stop without the keyboard:
 
@@ -81,7 +79,7 @@ holo guard         # run the listener yourself in the foreground (e.g. if you sk
 Good to know:
 
 - **The stop is step-bounded.** It halts the *next* action; the runtime still finishes the action already in flight. `holo stop --force` is the only instant stop.
-- **`holo stop --force` kills the runtime but leaves a headless host running with a dead backend.** `holo serve` / `holo mcp` / `holo acp` spawn their runtime once at startup and keep pointing at it, so after a force-kill the host process stays up but every later task fails (its requests hit a runtime that no longer exists) until you restart the host. Prefer plain `holo stop` there; reserve `--force` for `holo run` or a wedged runtime.
+- **`holo stop --force` kills the runtime but leaves a headless host running with a dead backend.** `holo mcp` spawns its runtime once at startup and keeps pointing at it, so after a force-kill the host process stays up but every later task fails (its requests hit a runtime that no longer exists) until you restart the host. Prefer plain `holo stop` there; reserve `--force` for `holo run` or a wedged runtime.
 - **The guard only inspects `Esc` timing**, never keystroke content — but it does hold Input Monitoring continuously while installed. Disable the embedded listener for a single run with `holo run --no-kill-switch`.
 - **`holo stop --force` matches pids by command line only.** A runtime that exited uncleanly can leave a stale `~/.hai/agent-runtime/state/agent-pid-<port>` behind; the pid is killed only if its command line names the runtime binary, so a recycled pid now running another runtime instance could still be targeted.
 - **Wayland (Linux) has no global key listener.** Use `holo stop` instead, bound to a compositor hotkey.
@@ -141,7 +139,7 @@ Hardware notes and ready-to-run vLLM and llama.cpp configs are in [docs/self-hos
 
 ## Use inside another agent
 
-Holo runs as a sub-agent of Claude Code, Cursor, Codex, and other [MCP](https://modelcontextprotocol.io) / [ACP](https://agentclientprotocol.com) hosts. When your main agent needs to read a screen or click through an app, it delegates to Holo and gets the answer back.
+Holo runs as a sub-agent of Claude Code, Cursor, Codex, and other [MCP](https://modelcontextprotocol.io) hosts. When your main agent needs to read a screen or click through an app, it delegates to Holo and gets the answer back.
 
 One command wires Holo into every supported host on your machine:
 
@@ -153,7 +151,7 @@ holo install list          # see what's available
 
 Each host gets the MCP server in its config, plus a [Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) (where supported) that teaches the parent when to delegate to Holo.
 
-> **Interrupting a running task:** over MCP a Holo task blocks until it finishes — stopping the turn in the host (Cursor, Codex, ...) does not abort the run already executing on your machine; it keeps clicking until it completes, times out, or the host kills the server process. Use [ACP](#acp) if you need a host-driven cancel.
+> **Interrupting a running task:** over MCP a Holo task blocks until it finishes — stopping the turn in the host (Cursor, Codex, ...) does not abort the run already executing on your machine; it keeps clicking until it completes, times out, or the host kills the server process. Stop it with a double `Esc` or `holo stop`.
 
 | id              | host                                                            | skill auto-load              |
 | --------------- | --------------------------------------------------------------- | ---------------------------- |
@@ -168,24 +166,6 @@ Each host gets the MCP server in its config, plus a [Skill](https://docs.claude.
 | `nemoclaw`      | NemoClaw (sandbox bridge)                                       | —                            |
 | `openclaw`      | [OpenClaw](https://github.com/openclaw/openclaw)                | `~/.openclaw/skills/`        |
 | `opencode`      | [OpenCode](https://opencode.ai)                                 | `~/.config/opencode/skills/` |
-
-### ACP
-
-> **Beta.** ACP support is still stabilising — interfaces and behaviour may change. `holo acp` prints this notice to stderr on startup.
-
-`holo acp` runs Holo as an [ACP](https://agentclientprotocol.com) sub-agent over stdio. Unlike MCP, ACP hosts can cancel an in-flight task.
-
-**Hermes** ([NousResearch](https://github.com/NousResearch/hermes-agent)):
-
-```python
-delegate_task(acp_command="holo acp", task="Open Authy and grab my AWS 2FA code")
-```
-
-**OpenClaw** — `~/.openclaw/openclaw.json`:
-
-```json
-{ "runtimes": { "holo": { "runtime": "acp-standard", "command": "holo", "args": ["acp"] } } }
-```
 
 ## Develop
 

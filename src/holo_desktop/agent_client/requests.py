@@ -15,9 +15,7 @@ HOLO_AGENT_DESCRIPTION = "Desktop agent that drives the user's machine via H Com
 DESKTOP_ENVIRONMENT_ID = "desktop"
 
 
-def build_session_request(
-    *, task: str, max_steps: int | None, max_time_s: float | None, idle_timeout_s: int | None = None
-) -> SessionRequest:
+def build_session_request(*, task: str, max_steps: int | None, max_time_s: float | None) -> SessionRequest:
     """Compose the session request: an inline ``Agent`` carrying ``~/.holo`` inputs plus the task."""
     ctx = customization.load_agent_context()
     instructions = customization.render_instructions(ctx)
@@ -38,5 +36,4 @@ def build_session_request(
         messages=task,
         max_steps=max_steps,
         max_time_s=max_time_s,
-        idle_timeout_s=idle_timeout_s,
     )

@@ -1,4 +1,4 @@
-"""Behavioural test: `holo run` must honour ``HAI_AGENT_RUNTIME_PORT`` like mcp/acp do.
+"""Behavioural test: `holo run` must honour ``HAI_AGENT_RUNTIME_PORT`` like mcp does.
 
 A fake agent-API server (health + create-session + changes) listens on a free
 port advertised only via ``HAI_AGENT_RUNTIME_PORT``. With no ``--port`` flag,

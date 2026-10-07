@@ -1,7 +1,7 @@
 """Behavioural tests for the spawn-token handoff between local clients.
 
 When ``ensure_running`` spawns the binary with a *generated* token, a second
-client (e.g. ``holo run`` while ``holo serve`` holds the runtime) has no way
+client (e.g. ``holo run`` while ``holo mcp`` holds the runtime) has no way
 to learn it from the environment. The launcher must publish the generated
 token to a per-port file so attaching clients can authenticate, and clean it
 up when the daemon it spawned stops. Explicit ``HAI_AGENT_RUNTIME_API_TOKEN``

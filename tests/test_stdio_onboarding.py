@@ -1,6 +1,6 @@
-"""Behavioural tests: `holo mcp` / `holo acp` onboarding parity with run/serve.
+"""Behavioural tests: `holo mcp` onboarding parity with `holo run`.
 
-A user whose first touchpoint is an MCP/ACP host must still get bundled skills
+A user whose first touchpoint is an MCP host must still get bundled skills
 seeded, and a missing credential must fail fast with a `holo login` pointer —
 stdio servers cannot open a browser, and the binary's own failure is cryptic.
 """
@@ -16,9 +16,8 @@ from holo_desktop import customization
 from holo_desktop.cli import bootstrap
 
 # `holo_desktop.cli.__init__` re-exports the command functions under the same
-# names as their submodules; go through importlib to get the modules.
+# names as their submodules; go through importlib to get the module.
 mcp_mod = importlib.import_module("holo_desktop.cli.mcp")
-acp_mod = importlib.import_module("holo_desktop.cli.acp")
 
 
 @pytest.fixture()
@@ -36,13 +35,6 @@ def _stub_mcp_loop(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mcp_mod.mcp_app, "run", lambda: None)
 
 
-def _stub_acp_loop(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_run_agent(agent: object) -> None:
-        return
-
-    monkeypatch.setattr(acp_mod, "run_agent", fake_run_agent)
-
-
 @pytest.mark.timeout(60)
 def test_mcp_seeds_bundled_skills(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HAI_API_KEY", "key")
@@ -54,36 +46,7 @@ def test_mcp_seeds_bundled_skills(holo_home: Path, monkeypatch: pytest.MonkeyPat
     mcp_mod.mcp()
 
     seeded = list((holo_home / "skills").glob("*/SKILL.md"))
-    assert seeded, "mcp must seed bundled skills like run/serve do"
-
-
-@pytest.mark.timeout(60)
-def test_acp_seeds_bundled_skills(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("HAI_API_KEY", "key")
-    # Seeding parity is only observable where a bundled set ships; pin one so the
-    # assertion holds on any runner (Linux has no bundled set, seeding no-ops there).
-    monkeypatch.setattr(customization, "bundled_skill_os", lambda: "macos")
-    _stub_acp_loop(monkeypatch)
-
-    acp_mod.acp()
-
-    seeded = list((holo_home / "skills").glob("*/SKILL.md"))
-    assert seeded, "acp must seed bundled skills like run/serve do"
-
-
-@pytest.mark.timeout(60)
-def test_acp_announces_beta_on_stderr(
-    holo_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    # ACP is beta; the notice must reach stderr (stdout carries the protocol).
-    monkeypatch.setenv("HAI_API_KEY", "key")
-    _stub_acp_loop(monkeypatch)
-
-    acp_mod.acp()
-
-    captured = capsys.readouterr()
-    assert "beta" in captured.err.lower()
-    assert "beta" not in captured.out.lower()
+    assert seeded, "mcp must seed bundled skills like run does"
 
 
 @pytest.mark.timeout(60)
@@ -94,19 +57,6 @@ def test_mcp_without_credentials_fails_fast_with_login_hint(
 
     with pytest.raises(SystemExit) as excinfo:
         mcp_mod.mcp()
-
-    assert excinfo.value.code == 1
-    assert "holo login" in capsys.readouterr().err
-
-
-@pytest.mark.timeout(60)
-def test_acp_without_credentials_fails_fast_with_login_hint(
-    holo_home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _stub_acp_loop(monkeypatch)
-
-    with pytest.raises(SystemExit) as excinfo:
-        acp_mod.acp()
 
     assert excinfo.value.code == 1
     assert "holo login" in capsys.readouterr().err

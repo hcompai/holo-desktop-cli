@@ -1,4 +1,4 @@
-"""Shared per-turn session driver for the serve (A2A), acp, and mcp surfaces."""
+"""Shared per-turn session driver for the run and mcp surfaces."""
 
 from __future__ import annotations
 
@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 
 SUCCESSFUL_TURN_STATUSES: frozenset[TrajectoryStatus] = frozenset({TrajectoryStatus.COMPLETED, TrajectoryStatus.IDLE})
 
-DEFAULT_INTERACTIVE_IDLE_TIMEOUT_S = 1800
-# Runaway guard for surfaces whose caller passes no budget (mcp/acp); generous enough for heavy tasks.
+# Runaway guard for surfaces whose caller passes no budget (mcp); generous enough for heavy tasks.
 DEFAULT_MAX_STEPS = 150
 DEFAULT_MAX_TIME_S = 1800.0
 # Cadence at which an in-flight turn checks the kill-switch sentinel.
@@ -129,7 +128,6 @@ async def run_turn(
     *,
     max_steps: int | None,
     max_time_s: float | None,
-    idle_timeout_s: int | None = None,
     on_event: Callable[[TrajectoryEvent], Awaitable[None]],
 ) -> TurnOutcome:
     """Create or continue the session, stream events through `on_event`, and return the terminal outcome.
@@ -152,7 +150,6 @@ async def run_turn(
                 watch_task,
                 max_steps=max_steps,
                 max_time_s=max_time_s,
-                idle_timeout_s=idle_timeout_s,
             )
             # Captured here, before _pause_then_cancel/cancel_session_best_effort forget the session,
             # so the outcome reports the id the turn ran against even after an interrupting stop.
@@ -202,7 +199,6 @@ async def _open_stream(
     *,
     max_steps: int | None,
     max_time_s: float | None,
-    idle_timeout_s: int | None,
 ) -> tuple[EventStream | None, bool]:
     """Open the turn's event stream, racing session setup against the stop watcher.
 
@@ -211,9 +207,7 @@ async def _open_stream(
     """
 
     async def _open() -> EventStream:
-        session_id = await _create_or_continue(
-            client, session, text, max_steps=max_steps, max_time_s=max_time_s, idle_timeout_s=idle_timeout_s
-        )
+        session_id = await _create_or_continue(client, session, text, max_steps=max_steps, max_time_s=max_time_s)
         return client.stream(session_id, from_index=session.next_index)
 
     return await _await_or_stop(_open(), watch_task)
@@ -273,7 +267,6 @@ async def _create_or_continue(
     *,
     max_steps: int | None,
     max_time_s: float | None,
-    idle_timeout_s: int | None,
 ) -> str:
     """Start a new agent-API session, or continue one; recreate if the server expired it."""
     if session.session_id is not None:
@@ -284,9 +277,7 @@ async def _create_or_continue(
             if exc.status_code not in _DEAD_SESSION_CODES:
                 raise
             session.reset()
-    request = build_session_request(
-        task=text, max_steps=max_steps, max_time_s=max_time_s, idle_timeout_s=idle_timeout_s
-    )
+    request = build_session_request(task=text, max_steps=max_steps, max_time_s=max_time_s)
     session.session_id = await client.create_session(request)
     return session.session_id
 
@@ -308,7 +299,7 @@ async def _pause_then_cancel(client: SessionApi, session: Session) -> None:
     """Pause for an immediate freeze, cancel, then forget the session so the next turn starts fresh.
 
     Each remote call is best-effort, but the local reset always runs: a cancelled session must never be
-    reused by callers (ACP / serve) that keep a long-lived ``Session`` across turns.
+    reused by a later turn.
     """
     session_id = session.session_id
     if session_id is None:

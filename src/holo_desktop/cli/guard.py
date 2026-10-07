@@ -1,6 +1,6 @@
 """`holo guard`: run the always-on double-Esc kill switch in the foreground.
 
-Covers headless surfaces (`holo mcp` under a host, `holo serve`) where no interactive Holo process
+Covers the headless surface (`holo mcp` under a host) where no interactive Holo process
 exists to host a listener, and where macOS attributes Input Monitoring to the launching app.
 """
 

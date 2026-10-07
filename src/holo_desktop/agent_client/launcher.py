@@ -144,7 +144,7 @@ class SpawnConfig(BaseModel):
 
 
 def spawn_config_from_env(*, settings: HoloSettings) -> SpawnConfig:
-    """:class:`SpawnConfig` purely from ``HAI_AGENT_RUNTIME_*`` env (stdio servers: mcp/acp)."""
+    """:class:`SpawnConfig` purely from ``HAI_AGENT_RUNTIME_*`` env (the `holo mcp` stdio server)."""
     runtime = settings.runtime
     return SpawnConfig(
         port=runtime.port,
@@ -159,7 +159,7 @@ def spawn_config_from_env(*, settings: HoloSettings) -> SpawnConfig:
 
 
 async def ensure_running_from_env() -> AgentDaemon:
-    """``ensure_running`` configured purely from ``HAI_AGENT_RUNTIME_*`` env (stdio servers: mcp/acp)."""
+    """``ensure_running`` configured purely from ``HAI_AGENT_RUNTIME_*`` env (the `holo mcp` stdio server)."""
     settings = load_holo_settings()
     return await ensure_running(spawn_config_from_env(settings=settings), settings=settings)
 

@@ -146,7 +146,7 @@ def mark_first_run_complete(version: str) -> None:
 
 
 def confirm_download() -> bool:
-    """One-line TTY confirmation (default yes); non-TTY contexts (mcp/acp hosts) download without asking."""
+    """One-line TTY confirmation (default yes); non-TTY contexts (mcp hosts) download without asking."""
     if not (sys.stdin.isatty() and sys.stderr.isatty()):
         logger.info("hai-agent-runtime %s not found; downloading to %s", PINNED_RUNTIME_VERSION, RUNTIME_DIR)
         return True
