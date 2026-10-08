@@ -78,8 +78,8 @@ CLIENTS: dict[str, Client] = {
     ),
     "grok-build": Client(
         name="Grok Build (xAI)",
-        # `grok mcp add` upserts into ~/.grok/config.toml (TOML, so no JSON/YAML merge for us).
         cli_cmd=("grok", "mcp", "add", SERVER_NAME, "--", HOLO, "mcp"),
+        cli_remove_cmds=(("grok", "mcp", "remove", "--scope", "user", SERVER_NAME),),
         skills_dir=".grok/skills",
         home_marker=".grok",
     ),
