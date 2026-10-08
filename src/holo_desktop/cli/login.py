@@ -5,6 +5,7 @@ from __future__ import annotations
 import getpass
 import platform
 import sys
+from pathlib import Path
 from typing import Annotated
 
 import tyro
@@ -36,7 +37,7 @@ def login(
         if not pasted:
             err.print("[red]x[/red] no key given.")
             raise SystemExit(1)
-        err.print(f"[green]ok[/green] key saved to [cyan]{credentials.save_api_key(pasted)}[/cyan]")
+        err.print(f"[green]ok[/green] key saved to [cyan]{_save_key(pasted)}[/cyan]")
         return
 
     host = platform.node().split(".", 1)[0] or "device"
@@ -52,15 +53,25 @@ def login(
     except Exception as exc:
         err.print(f"[red]x[/red] sign-in failed: {exc}\n{KEY_FALLBACK}")
         raise SystemExit(1) from None
-    err.print(f"[green]ok[/green] signed in; key saved to [cyan]{credentials.save_api_key(minted)}[/cyan]")
+    err.print(f"[green]ok[/green] signed in; key saved to [cyan]{_save_key(minted)}[/cyan]")
 
 
 def logout() -> None:
     """Forget this machine's H Company API key."""
-    if bootstrap.LEGACY_ENV_PATH.exists() and dotenv_values(bootstrap.LEGACY_ENV_PATH).get("HAI_API_KEY"):
-        unset_key(str(bootstrap.LEGACY_ENV_PATH), "HAI_API_KEY")
+    _forget_legacy_key()
     credentials.clear_api_key()
     print("signed out.", file=sys.stderr)
+
+
+def _save_key(key: str) -> Path:
+    """Store `key` for the SDK; a legacy `~/.holo/.env` key would otherwise shadow it on the next run."""
+    _forget_legacy_key()
+    return credentials.save_api_key(key)
+
+
+def _forget_legacy_key() -> None:
+    if bootstrap.LEGACY_ENV_PATH.exists() and dotenv_values(bootstrap.LEGACY_ENV_PATH).get("HAI_API_KEY"):
+        unset_key(str(bootstrap.LEGACY_ENV_PATH), "HAI_API_KEY")
 
 
 def whoami() -> None:
