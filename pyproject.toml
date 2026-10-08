@@ -39,7 +39,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-hai-agents = { git = "https://github.com/hcompai/hai-agents-python", rev = "1ea2dfc731a38d04bae009dd5514bbdd19e4a820" }
+hai-agents = { git = "https://github.com/hcompai/hai-agents-python", rev = "6fa989137e59e313b725e231fc5325ae3a8d7689" }
 
 [project.urls]
 Homepage = "https://hcompany.ai"
