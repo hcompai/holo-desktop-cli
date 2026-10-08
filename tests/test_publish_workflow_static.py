@@ -11,8 +11,11 @@ def test_publish_workflow_uploads_installer_assets_after_release() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8"))
     job = workflow["jobs"]["publish-installer-cdn"]
 
-    assert job["needs"] == "release"
-    assert job["if"] == "startsWith(github.ref, 'refs/tags/v')"
+    assert job["needs"] == ["release", "windows-arm64-dependency"]
+    assert "needs.windows-arm64-dependency.result == 'success'" in job["if"]
+    assert "startsWith(github.ref, 'refs/tags/v') && needs.release.result == 'success'" in job["if"]
+    assert "inputs.target == 'installer-cdn'" in job["if"]
+    assert job["steps"][0]["with"]["ref"] == "${{ inputs.tag || github.ref }}"
     assert job["permissions"]["id-token"] == "write"
     assert job["permissions"]["contents"] == "read"
 
@@ -32,8 +35,13 @@ def test_publish_workflow_uploads_installer_assets_after_release() -> None:
     upload_step = next(step for step in job["steps"] if step.get("name") == "Upload installer assets")
     assert "--if-none-match '*'" in upload_step["run"]
     assert "max-age=31536000, immutable" in upload_step["run"]
+    verify_step = next(step for step in job["steps"] if step.get("name") == "Verify CDN endpoints")
+    assert "expected_version=\"$(jq -r '.holo_version' install/manifest.json)\"" in verify_step["run"]
+    assert 'if [ "$served_version" = "$expected_version" ]; then' in verify_step["run"]
+    assert job["outputs"]["holo_version"] == "${{ steps.verify.outputs.holo_version }}"
     smoke_step = next(step for step in job["steps"] if step.get("name") == "Smoke Linux installer from CDN")
     assert 'curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | bash' in smoke_step["run"]
+    assert '[ "$(installed_version)" = "$expected_version" ]' in smoke_step["run"]
     assert '"$HOLO_HOME/bin/holo" --help' in smoke_step["run"]
 
 
@@ -55,8 +63,15 @@ def test_release_builds_and_materializes_the_windows_arm64_dependency() -> None:
     wheel = workflow["jobs"]["windows-arm64-dependency"]
     release = workflow["jobs"]["release"]
 
-    assert wheel["if"] == "startsWith(github.ref, 'refs/tags/v')"
+    assert wheel["if"] == "startsWith(github.ref, 'refs/tags/v') || inputs.target == 'installer-cdn'"
     assert wheel["runs-on"] == "windows-11-arm"
+    checkouts = [step for step in wheel["steps"] if step.get("uses") == "actions/checkout@v4"]
+    assert "with" not in checkouts[0]
+    assert checkouts[1]["with"] == {"ref": "${{ inputs.tag || github.ref }}", "path": "release-source"}
+    build = next(step for step in wheel["steps"] if step.get("id") == "build")
+    assert '-ManifestSource "$env:GITHUB_WORKSPACE\\release-source\\install\\manifest.json"' in build["run"]
+    assert workflow[True]["workflow_dispatch"]["inputs"]["target"]["options"] == ["testpypi", "installer-cdn"]
+    assert workflow["jobs"]["quality"]["if"] == "inputs.target != 'installer-cdn'"
     rendered = yaml.safe_dump(wheel, sort_keys=True)
     assert "build_windows_arm64_dependency_wheel.ps1" in rendered
     assert "manifest_path" in rendered
@@ -69,6 +84,9 @@ def test_release_builds_and_materializes_the_windows_arm64_dependency() -> None:
     build_script = (ROOT / "scripts/build_windows_arm64_dependency_wheel.ps1").read_text(encoding="utf-8")
     assert '"cpython-$PythonVersion-windows-aarch64-none"' in build_script
     assert '-Filter "$DependencyName-*-win_arm64.whl"' in build_script
+    assert "if (-not (Get-PublishedWheel)) {\n    Build-Wheel\n}" in build_script
+    assert "if ($Status -eq 404) {" in build_script
+    assert "not rebuilding over an immutable object" in build_script
 
 
 def test_client_release_smokes_windows_arm64() -> None:
@@ -80,6 +98,9 @@ def test_client_release_smokes_windows_arm64() -> None:
     assert "https://install.hcompany.ai" in rendered
     assert "install.ps1" in rendered
     assert "holo.exe" in rendered
+    smoke_step = next(step for step in smoke["steps"] if step.get("name") == "Smoke Windows ARM64 installer from CDN")
+    assert smoke_step["env"]["EXPECTED_HOLO_VERSION"] == "${{ needs.publish-installer-cdn.outputs.holo_version }}"
+    assert "-ne $env:EXPECTED_HOLO_VERSION" in smoke_step["run"]
 
 
 def test_windows_arm64_installer_scaffolding() -> None:

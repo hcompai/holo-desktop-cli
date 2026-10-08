@@ -6,16 +6,21 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Manual dispatch publishes to TestPyPI only; prod PyPI is reserved for v* tags."
+        description: "testpypi publishes a build to TestPyPI; installer-cdn republishes the installer assets of an existing v* tag. Prod PyPI is reserved for v* tag pushes."
         type: choice
-        options: [testpypi]
+        options: [testpypi, installer-cdn]
         default: testpypi
+      tag:
+        description: "Existing release tag (v*) to republish installer assets for; installer-cdn only."
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   quality:
+    if: inputs.target != 'installer-cdn'
     runs-on: ubuntu-latest
     env:
       # Backstop for sub-calls that print before main() reconfigures stdout (cp1252 otherwise).
@@ -38,10 +43,21 @@ jobs:
           uv run python -c "import holo_desktop.cli; from holo_desktop import __version__; import holo_desktop.task; print(__version__)"
 
   windows-arm64-dependency:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.target == 'installer-cdn'
     runs-on: windows-11-arm
     steps:
+      - name: Require an existing release tag for installer-cdn
+        if: inputs.target == 'installer-cdn' && !startsWith(inputs.tag, 'v')
+        shell: bash
+        run: |
+          echo "installer-cdn needs tag=v<version>, got '${{ inputs.tag }}'" >&2
+          exit 1
       - uses: actions/checkout@v4
+      - name: Check out the release being published
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          path: release-source
       - uses: astral-sh/setup-uv@v3
         with:
           version: "0.9.18"
@@ -52,7 +68,8 @@ jobs:
         run: |
           .\scripts\build_windows_arm64_dependency_wheel.ps1 `
             -WheelDirectory "$env:RUNNER_TEMP\windows-arm64-dependency\wheels" `
-            -ManifestOutput "$env:RUNNER_TEMP\windows-arm64-dependency\install\manifest.json"
+            -ManifestOutput "$env:RUNNER_TEMP\windows-arm64-dependency\install\manifest.json" `
+            -ManifestSource "$env:GITHUB_WORKSPACE\release-source\install\manifest.json"
       - name: Refuse an unpublished or mismatched dependency
         shell: pwsh
         run: |
@@ -164,8 +181,16 @@ jobs:
           draft: false
 
   publish-installer-cdn:
-    needs: release
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release, windows-arm64-dependency]
+    if: >-
+      ${{
+        !cancelled()
+        && needs.windows-arm64-dependency.result == 'success'
+        && (
+          (startsWith(github.ref, 'refs/tags/v') && needs.release.result == 'success')
+          || inputs.target == 'installer-cdn'
+        )
+      }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -173,8 +198,12 @@ jobs:
     env:
       INSTALLER_ASSETS_BUCKET: hcompany-holo-desktop-installer-assets
       INSTALLER_BASE_URL: https://install.hcompany.ai
+    outputs:
+      holo_version: ${{ steps.verify.outputs.holo_version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           name: windows-arm64-dependency
@@ -244,17 +273,31 @@ jobs:
             --content-type application/json \
             --cache-control "public, max-age=300"
       - name: Verify CDN endpoints
+        id: verify
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | head -n 5
           curl -fsSL "${INSTALLER_BASE_URL}/install.ps1" | head -n 5
-          manifest="$(curl -fsSL "${INSTALLER_BASE_URL}/install/manifest.json")"
-          python -m json.tool <<<"$manifest" >/dev/null
+          expected_version="$(jq -r '.holo_version' install/manifest.json)"
+          for attempt in $(seq 1 11); do
+            manifest="$(curl -fsSL "${INSTALLER_BASE_URL}/install/manifest.json")"
+            served_version="$(jq -r '.holo_version' <<<"$manifest")"
+            if [ "$served_version" = "$expected_version" ]; then
+              break
+            fi
+            if [ "$attempt" -eq 11 ]; then
+              echo "CDN still serves manifest ${served_version}, expected ${expected_version}" >&2
+              exit 1
+            fi
+            echo "CDN serves manifest ${served_version}, expected ${expected_version}; attempt ${attempt}/11, retrying in 30 seconds"
+            sleep 30
+          done
           wheel_url="$(jq -r '.supported_platforms["windows-arm64"].dependency_wheels[0].url' <<<"$manifest")"
           expected_sha="$(jq -r '.supported_platforms["windows-arm64"].dependency_wheels[0].sha256' <<<"$manifest")"
           actual_sha="$(curl -fsSL "$wheel_url" | sha256sum | cut -d' ' -f1)"
           test "$actual_sha" = "$expected_sha"
+          echo "holo_version=$expected_version" >> "$GITHUB_OUTPUT"
       - name: Smoke Linux installer from CDN
         shell: bash
         env:
@@ -264,15 +307,19 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
+          expected_version="${{ steps.verify.outputs.holo_version }}"
+          installed_version() {
+            "$HOLO_HOME/tools/holo-desktop-cli/bin/python" -c 'from holo_desktop import __version__; print(__version__)'
+          }
           for attempt in $(seq 1 11); do
             rm -rf "$HOME"
             mkdir -p "$HOME"
-            if curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | bash; then
+            if curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | bash && [ "$(installed_version)" = "$expected_version" ]; then
               "$HOLO_HOME/bin/holo" --help
               exit 0
             fi
             if [ "$attempt" -lt 11 ]; then
-              echo "Installer CDN has not converged after attempt ${attempt}/11; retrying in 30 seconds"
+              echo "Installer CDN has not converged on ${expected_version} after attempt ${attempt}/11; retrying in 30 seconds"
               sleep 30
             fi
           done
@@ -281,7 +328,7 @@ jobs:
 
   smoke-windows-arm64-installer-cdn:
     needs: publish-installer-cdn
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.target == 'installer-cdn'
     runs-on: windows-11-arm
     env:
       INSTALLER_BASE_URL: https://install.hcompany.ai
@@ -290,6 +337,7 @@ jobs:
         shell: pwsh
         env:
           HOLO_HOME: ${{ runner.temp }}\holo-installer-home\.holo
+          EXPECTED_HOLO_VERSION: ${{ needs.publish-installer-cdn.outputs.holo_version }}
         run: |
           $ErrorActionPreference = "Stop"
           $installer = Join-Path $env:RUNNER_TEMP "install.ps1"
@@ -298,6 +346,10 @@ jobs:
             try {
               Invoke-WebRequest "$env:INSTALLER_BASE_URL/install.ps1" -OutFile $installer
               & $installer
+              $installed = & "$env:HOLO_HOME\tools\holo-desktop-cli\Scripts\python.exe" -c "from holo_desktop import __version__; print(__version__)"
+              if ("$installed".Trim() -ne $env:EXPECTED_HOLO_VERSION) {
+                throw "installed holo $installed, expected $env:EXPECTED_HOLO_VERSION"
+              }
               & "$env:HOLO_HOME\bin\holo.exe" --help
               exit 0
             } catch {
