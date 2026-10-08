@@ -35,8 +35,13 @@ def test_publish_workflow_uploads_installer_assets_after_release() -> None:
     upload_step = next(step for step in job["steps"] if step.get("name") == "Upload installer assets")
     assert "--if-none-match '*'" in upload_step["run"]
     assert "max-age=31536000, immutable" in upload_step["run"]
+    verify_step = next(step for step in job["steps"] if step.get("name") == "Verify CDN endpoints")
+    assert "expected_version=\"$(jq -r '.holo_version' install/manifest.json)\"" in verify_step["run"]
+    assert 'if [ "$served_version" = "$expected_version" ]; then' in verify_step["run"]
+    assert job["outputs"]["holo_version"] == "${{ steps.verify.outputs.holo_version }}"
     smoke_step = next(step for step in job["steps"] if step.get("name") == "Smoke Linux installer from CDN")
     assert 'curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | bash' in smoke_step["run"]
+    assert '[ "$(installed_version)" = "$expected_version" ]' in smoke_step["run"]
     assert '"$HOLO_HOME/bin/holo" --help' in smoke_step["run"]
 
 
@@ -80,6 +85,8 @@ def test_release_builds_and_materializes_the_windows_arm64_dependency() -> None:
     assert '"cpython-$PythonVersion-windows-aarch64-none"' in build_script
     assert '-Filter "$DependencyName-*-win_arm64.whl"' in build_script
     assert "if (-not (Get-PublishedWheel)) {\n    Build-Wheel\n}" in build_script
+    assert "if ($Status -eq 404) {" in build_script
+    assert "not rebuilding over an immutable object" in build_script
 
 
 def test_client_release_smokes_windows_arm64() -> None:
@@ -91,6 +98,9 @@ def test_client_release_smokes_windows_arm64() -> None:
     assert "https://install.hcompany.ai" in rendered
     assert "install.ps1" in rendered
     assert "holo.exe" in rendered
+    smoke_step = next(step for step in smoke["steps"] if step.get("name") == "Smoke Windows ARM64 installer from CDN")
+    assert smoke_step["env"]["EXPECTED_HOLO_VERSION"] == "${{ needs.publish-installer-cdn.outputs.holo_version }}"
+    assert "-ne $env:EXPECTED_HOLO_VERSION" in smoke_step["run"]
 
 
 def test_windows_arm64_installer_scaffolding() -> None:

@@ -68,7 +68,9 @@ curl -fsSL https://install.holo.ai/install.ps1 | head
 curl -fsSL https://install.holo.ai/install/manifest.json | python -m json.tool
 ```
 
-The Windows ARM64 `cryptography` wheel lives under an immutable, version-scoped CDN key (`wheels/windows-arm64/cryptography/<version>/…`). The release job downloads the already-published wheel when one exists and only builds from source when the key is new, so the manifest always points at the bytes the CDN serves.
+The Windows ARM64 `cryptography` wheel lives under an immutable, version-scoped CDN key (`wheels/windows-arm64/cryptography/<version>/…`). The release job downloads the already-published wheel when one exists and only builds from source when the CDN answers 404, so the manifest always points at the bytes the CDN serves. Any other download error fails the job rather than rebuilding over the immutable object.
+
+`publish-installer-cdn` then waits for the CDN to serve a manifest whose `holo_version` is the release's, and the Linux and Windows ARM64 smokes assert the installed CLI reports that same version.
 
 Rollback is a new patch release that restores the previous manifest and installer scripts. If a same-version emergency rollback is required, manually upload the previous three assets to the same S3 keys and verify the CDN endpoints after the 300-second cache window.
 

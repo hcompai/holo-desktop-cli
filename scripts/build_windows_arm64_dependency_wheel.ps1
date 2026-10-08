@@ -43,15 +43,25 @@ function Get-PublishedWheel {
     $WheelName = "$DependencyName-$DependencyVersion-cp$($PythonVersion.Replace('.', ''))-abi3-win_arm64.whl"
     $Url = "$PublishedBaseUrl/$DependencyName/$DependencyVersion/$WheelName"
     $Target = Join-Path $WheelDirectory $WheelName
-    try {
-        Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing
-    } catch {
-        Remove-Item -Path $Target -Force -ErrorAction SilentlyContinue
-        Write-Host "no published wheel at $Url; building from source"
-        return $false
+    for ($Attempt = 1; $Attempt -le 3; $Attempt++) {
+        try {
+            Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing
+            Write-Host "reusing published wheel $Url"
+            return $true
+        } catch {
+            Remove-Item -Path $Target -Force -ErrorAction SilentlyContinue
+            $Status = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
+            if ($Status -eq 404) {
+                Write-Host "no published wheel at $Url; building from source"
+                return $false
+            }
+            Write-Host "attempt $Attempt/3 to download $Url failed (HTTP $Status): $_"
+            if ($Attempt -lt 3) {
+                Start-Sleep -Seconds 10
+            }
+        }
     }
-    Write-Host "reusing published wheel $Url"
-    return $true
+    throw "could not determine whether a published wheel exists at $Url; not rebuilding over an immutable object"
 }
 
 function Build-Wheel {
