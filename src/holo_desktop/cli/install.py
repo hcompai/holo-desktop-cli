@@ -3,18 +3,10 @@
 from typing import Annotated
 
 import tyro
+from hai_agents_cli.mcp_hosts import Status, home_short, host_present, host_target, wire_mcp, wire_skill
 from rich.console import Console
 
-from holo_desktop.cli.hosts import (
-    CLIENTS,
-    Status,
-    home_short,
-    host_present,
-    host_target,
-    resolve_holo_command,
-    wire_host,
-    wire_skill,
-)
+from holo_desktop.cli.hosts import CLIENTS, HOLO, SKILL_NAME, resolve_holo_command, skill_source
 from holo_desktop.killswitch.autostart import AutostartResult, ensure_autostart
 
 err = Console(stderr=True)
@@ -33,9 +25,9 @@ _GUARD_STATUS: dict[AutostartResult, Status] = {
 }
 ID_WIDTH = max(len(host_id) for host_id in CLIENTS)
 
-# `holo install` wires the MCP server into hosts for you; these are the raw stdio
-# servers a host config invokes. Typing them as an install target is a common slip.
-PROTOCOL_WORDS = ("mcp", "acp")
+# `holo install` wires the MCP server into hosts for you; this is the raw stdio
+# server a host config invokes. Typing it as an install target is a common slip.
+PROTOCOL_WORDS = ("mcp",)
 
 
 def install(
@@ -79,14 +71,15 @@ def install(
         raise SystemExit(2)
 
     err.print()
+    holo = {HOLO: resolve_holo_command()}
     failed = False
     for host_id, c in targets:
-        status, detail = wire_host(c)
+        status, detail = wire_mcp(c, holo)
         glyph, color = STYLE[status]
         line = f"  {glyph} [bold cyan]{host_id:<{ID_WIDTH}}[/bold cyan]  [{color}]{detail}[/{color}]"
         skill_fatal = False
-        if c.wire is None and c.skills_dir is not None:
-            s_status, s_detail = wire_skill(c)
+        if c.skills_dir is not None:
+            s_status, s_detail = wire_skill(c, SKILL_NAME, skill_source())
             skill_fatal = s_status.fatal
             if s_status.ok:
                 line += f"  [dim]→ {s_detail}[/dim]"

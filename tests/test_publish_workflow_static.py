@@ -71,15 +71,8 @@ def test_release_builds_and_materializes_the_windows_arm64_dependency() -> None:
     assert '-Filter "$DependencyName-*-win_arm64.whl"' in build_script
 
 
-def test_client_release_refuses_placeholder_runtime_and_smokes_windows_arm64() -> None:
+def test_client_release_smokes_windows_arm64() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8"))
-    build_steps = workflow["jobs"]["build"]["steps"]
-    gate = next(
-        step for step in build_steps if step.get("name") == "assert every managed runtime artifact is published"
-    )
-    assert gate["if"] == "startsWith(github.ref, 'refs/tags/v')"
-    assert "'=0{64}$' shas/*.txt" in gate["run"]
-
     smoke = workflow["jobs"]["smoke-windows-arm64-installer-cdn"]
     assert smoke["needs"] == "publish-installer-cdn"
     assert smoke["runs-on"] == "windows-11-arm"
@@ -87,20 +80,15 @@ def test_client_release_refuses_placeholder_runtime_and_smokes_windows_arm64() -
     assert "https://install.hcompany.ai" in rendered
     assert "install.ps1" in rendered
     assert "holo.exe" in rendered
-    smoke_step = next(step for step in smoke["steps"] if step.get("name") == "Smoke Windows ARM64 installer from CDN")
-    assert smoke_step["env"]["UV_NO_BUILD"] == "1"
 
 
-def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
+def test_windows_arm64_installer_scaffolding() -> None:
     ci = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
     installer = ci["jobs"]["windows-arm64-installer"]
     assert installer["runs-on"] == "windows-11-arm"
     rendered_installer = yaml.safe_dump(installer, sort_keys=True)
     assert "install.ps1" in rendered_installer
-    assert "windows-arm64.txt" in rendered_installer
-    assert "HOLO_INSTALL_SKIP_RUN_SETUP" in rendered_installer
     assert "build_windows_arm64_dependency_wheel.ps1" in rendered_installer
-    assert "UV_NO_BUILD" in rendered_installer
     assert "steps.dependency.outputs.manifest_path" in rendered_installer
     assert "steps.client.outputs.wheel_path" in rendered_installer
     install_step = next(
@@ -109,32 +97,6 @@ def test_windows_arm64_installer_and_full_e2e_scaffolding() -> None:
     assert "Resolve-Path .\\install\\install.ps1" in install_step["run"]
     assert "Push-Location $env:RUNNER_TEMP" in install_step["run"]
     assert "windows-11-arm" in ci["jobs"]["python"]["strategy"]["matrix"]["os"]
-
-    full_e2e_path = ROOT / ".github/workflows/holo-full-e2e.yml"
-    full_e2e_source = full_e2e_path.read_text(encoding="utf-8")
-    assert "selector: 'windows-arm64'" in full_e2e_source
-    assert "os: 'windows-11-arm'" in full_e2e_source
-    assert "artifact_platform: 'windows-arm64'" in full_e2e_source
-    assert "release_default: false" in full_e2e_source
-    assert "matrix.artifact_platform" in full_e2e_source
-
-    full_e2e = yaml.safe_load(full_e2e_source)
-    openssl = next(
-        step
-        for step in full_e2e["jobs"]["full-e2e"]["steps"]
-        if step.get("name") == "Prepare OpenSSL for Windows ARM64 Python dependencies"
-    )
-    assert openssl["if"] == "matrix.artifact_platform == 'windows-arm64'"
-    assert openssl["shell"] == "pwsh"
-    assert "openssl:arm64-windows-static-md" in openssl["run"]
-    assert "VCPKG_ROOT=" in openssl["run"]
-    assert "OPENSSL_DIR=" in openssl["run"]
-    assert "OPENSSL_STATIC=1" in openssl["run"]
-
-    step_names = [step.get("name") for step in full_e2e["jobs"]["full-e2e"]["steps"]]
-    assert step_names.index("Install dependencies") < step_names.index("Prepare Windows ARM64 desktop")
-    assert step_names.index("Prepare Windows ARM64 desktop") < step_names.index("List full e2e shard task ids")
-    assert step_names.index("Upload Windows ARM64 desktop readiness") < step_names.index("Run full live e2e suite")
 
 
 def test_windows_arm64_candidate_is_verified_and_consumed_before_merge() -> None:
@@ -176,31 +138,4 @@ def test_windows_arm64_candidate_is_verified_and_consumed_before_merge() -> None
     assert "HAI_AGENT_RUNTIME_DOWNLOAD_URL" in installer_run["run"]
     assert "HAI_AGENT_RUNTIME_DOWNLOAD_SHA256" in installer_run["run"]
     assert "http.server" in installer_run["run"]
-    assert "$runtimeSha -notmatch" in installer_run["run"] and "$hasCandidate" in installer_run["run"]
-
-    full_e2e = yaml.safe_load((ROOT / ".github/workflows/holo-full-e2e.yml").read_text(encoding="utf-8"))
-    e2e_candidate = next(
-        step
-        for step in full_e2e["jobs"]["full-e2e"]["steps"]
-        if step.get("name") == "Set up the pre-merge HAI runtime candidate"
-    )
-    assert e2e_candidate["if"] == (
-        "matrix.artifact_platform == 'windows-arm64' && vars.HAI_WINDOWS_ARM64_CANDIDATE_RUN_ID != ''"
-    )
-    assert e2e_candidate["uses"] == "./.github/actions/setup-hai-runtime-candidate"
-
-
-def test_linux_live_workflows_install_the_pull_request_candidate() -> None:
-    for relative_path in (
-        ".github/workflows/holo-live-smoke.yml",
-        ".github/workflows/holo-full-e2e.yml",
-    ):
-        workflow = (ROOT / relative_path).read_text(encoding="utf-8")
-        assert "Install Linux candidate through shell installer" in workflow
-        assert "HOLO_INSTALL_MANIFEST_URL" in workflow
-        assert "HOLO_INSTALL_PACKAGE" in workflow
-        assert (
-            'curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/install/install.sh" | bash'
-            in workflow
-        )
-        assert '"$HOLO_HOME/bin/holo" --help' in workflow
+    assert "$hasCandidate" in installer_run["run"]

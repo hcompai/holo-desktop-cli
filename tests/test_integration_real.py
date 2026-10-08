@@ -1,16 +1,13 @@
 """Real-agent integration (opt-in): full path to completion.
 
-Drives the complete client stack — ``holo run`` (this client) spawns the
-real ``hai-agent-runtime`` binary on loopback, creates a session, streams ``/changes``,
-and prints the answer — against a live Holo3 model and a real desktop.
+Drives the complete stack: ``holo run`` starts the real runtime through the SDK,
+runs one task on the real desktop against a live model, and prints the answer.
 
 Skipped by default: it needs a model + a desktop session + credentials, none of
 which exist in unit CI. Opt in by exporting:
 
 - ``HOLO_RUN_INTEGRATION=1``                     enable this module
-- ``hai-agent-runtime`` on ``PATH``                 the real binary (or a wrapper script around
-                                                 "python -m hai_agent_runtime" from a dev checkout)
-- ``HOLO_IT_BASE_URL=<url>`` (optional)          self-hosted Holo3 endpoint; omit to use hosted
+- ``HOLO_IT_BASE_URL=<url>`` (optional)          self-hosted endpoint (needs HOLO_IT_MODEL)
 - ``HOLO_IT_MODEL=<name>``   (optional)          model override
 - ``HOLO_IT_TASK=<text>``    (optional)          overrides the default trivial task
 """
@@ -27,7 +24,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("HOLO_RUN_INTEGRATION") != "1",
-    reason="opt-in: set HOLO_RUN_INTEGRATION=1 (needs a model + desktop + the real hai-agent-runtime binary)",
+    reason="opt-in: set HOLO_RUN_INTEGRATION=1 (needs a model, a desktop, and credentials)",
 )
 
 _DEFAULT_TASK = "Look at the current screen and describe in one short sentence what is visible."
@@ -45,9 +42,6 @@ def _holo_executable() -> str:
 
 
 def test_real_run_completes_with_answer() -> None:
-    if shutil.which("hai-agent-runtime") is None:
-        pytest.skip("put hai-agent-runtime (or a wrapper script) on PATH for the integration run")
-
     cmd = [_holo_executable(), "run", os.environ.get("HOLO_IT_TASK") or _DEFAULT_TASK, "--quiet"]
     if base_url := os.environ.get("HOLO_IT_BASE_URL", "").strip():
         cmd += ["--base-url", base_url]

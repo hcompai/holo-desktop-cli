@@ -4,6 +4,23 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+- Removed `holo acp` and `holo serve` (A2A). Agent hosts reach Holo through `holo mcp`; wire one with `holo install`.
+- `holo` is now a thin shell over the `hai-agents` SDK local mode (1.2.2+). The SDK owns the runtime, sign-in, and kill switch.
+- `holo login` saves the key to `~/.config/hai/.env`, shared with the `hai` CLI; a key in `~/.holo/.env` still works. Added `holo logout` and `holo login --key`.
+- `--fast` now only disables model reasoning.
+- One agent drives the desktop at a time: a second `holo run` fails fast with a pointer to `holo stop`, and parallel `holo mcp` calls queue.
+- `holo install` wires Claude Code at user scope, so Holo is available in every project.
+- `holo install codex` works with only the Codex desktop app installed.
+- A self-hosted `--base-url` now needs `--model`, the Holo version your server serves.
+- A self-hosted `--base-url` run gets its own runtime, so it never collides with a hosted `holo mcp`.
+- On Windows and Linux, log out and back in after upgrading so the kill switch restarts on the new version.
+- Removed `holo agent-api`, `holo stop --force`, and the `holo run` flags `--port`, `--runs-dir`, `--fake`, and `--profile`.
+- Removed the expense-report example.
+- Removed the NemoClaw host integration.
+- Removed the live e2e harness and its workflows; agent evals run in agent-tasks.
+
 ## [0.0.6] - 2026-09-22
 
 - Fixed `holo run` requiring `HAI_API_KEY` when a runtime base URL is configured through the environment.

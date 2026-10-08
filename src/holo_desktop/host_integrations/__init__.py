@@ -1,1 +1,0 @@
-"""Packaged host integration assets."""

@@ -1,1 +1,0 @@
-"""NemoClaw integration assets."""

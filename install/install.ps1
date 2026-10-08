@@ -134,7 +134,10 @@ try {
                 Fail "sha256 mismatch for Windows ARM64 dependency '$DependencyName': expected $DependencySha256, got $ActualDependencySha256"
             }
         }
-        $BinaryDependencyArgs = @("--find-links", $WheelDirectory, "--no-build")
+        $BinaryDependencyArgs = @("--find-links", $WheelDirectory)
+        foreach ($Dependency in $Dependencies) {
+            $BinaryDependencyArgs += @("--no-build-package", [string]$Dependency.name)
+        }
     }
 
     & $UvExe tool install $PackageSpec --python $PythonExe --force --reinstall-package holo-desktop-cli @BinaryDependencyArgs
@@ -154,7 +157,7 @@ try {
     }
 
     if ($env:HOLO_INSTALL_SKIP_RUN_SETUP -ne "1") {
-        & $UvExe run --python $PythonExe --with $PackageSpec @BinaryDependencyArgs python -m holo_desktop.installer_bootstrap --yes
+        & $UvExe run --python $PythonExe --with $PackageSpec @BinaryDependencyArgs python -m holo_desktop.installer_bootstrap
         if ($LASTEXITCODE -ne 0) {
             Fail "Holo Desktop runtime setup failed"
         }

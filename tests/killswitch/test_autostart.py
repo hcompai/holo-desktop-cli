@@ -35,7 +35,9 @@ def test_linux_desktop_execs_holo_guard() -> None:
     assert "Type=Application" in desktop
 
 
-def test_ensure_macos_writes_then_skips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ensure_macos_writes_once_and_restarts_the_running_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(autostart.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(autostart, "LAUNCH_AGENTS_DIR", tmp_path / "LaunchAgents")
     monkeypatch.setattr(autostart, "GUARD_LOG_PATH", tmp_path / "logs" / "holo-guard.log")
@@ -50,8 +52,10 @@ def test_ensure_macos_writes_then_skips(tmp_path: Path, monkeypatch: pytest.Monk
     assert "holo" in plist.read_text(encoding="utf-8")
     assert any("bootstrap" in part for cmd in activations for part in cmd)
 
+    activations.clear()
     again, _ = ensure_autostart("/opt/holo/bin/holo")
     assert again is AutostartResult.SKIPPED
+    assert ["launchctl", "kickstart", "-k", f"gui/501/{autostart.GUARD_LABEL}"] in activations
 
 
 def test_wayland_is_unsupported(monkeypatch: pytest.MonkeyPatch) -> None:

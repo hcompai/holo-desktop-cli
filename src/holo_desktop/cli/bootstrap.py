@@ -1,113 +1,56 @@
-"""On-disk identity bootstrap: layered .env loading + HAI_API_KEY persistence."""
+"""Process startup shared by `holo run` and `holo mcp`: env loading, sign-in gate, stdio hygiene."""
 
 import contextlib
 import logging
-import os
+import signal
 import sys
 
-from dotenv import dotenv_values, load_dotenv, set_key
+from dotenv import dotenv_values, load_dotenv
+from hai_agents_common import credentials
+from hai_agents_common.credentials import current_api_key
 
-from holo_desktop.customization import HOLO_DIR, ensure_holo_dir, seed_bundled_skills
-from holo_desktop.settings import HoloSettings, load_holo_settings
+from holo_desktop.customization import HOLO_DIR, seed_bundled_skills
 
-USER_ENV_PATH = HOLO_DIR / ".env"
+LEGACY_ENV_PATH = HOLO_DIR / ".env"
+NO_KEY_MESSAGE = "No H Company API key found. Run `holo login` in a terminal, or set HAI_API_KEY."
 
 
 def load_holo_env() -> None:
-    """Layered dotenv: process env > `~/.holo/.env` > CWD `.env`."""
-    if USER_ENV_PATH.exists():
-        load_dotenv(USER_ENV_PATH)
+    """Layered dotenv: process env > `~/.holo/.env` > CWD `.env`; the SDK then falls back to `~/.config/hai/.env`."""
+    if LEGACY_ENV_PATH.exists():
+        load_dotenv(LEGACY_ENV_PATH)
     load_dotenv()
 
 
-def read_user_env_key() -> str | None:
-    """HAI_API_KEY stored in `~/.holo/.env`, or None. Does not touch the process env."""
-    if not USER_ENV_PATH.exists():
-        return None
-    return dotenv_values(USER_ENV_PATH).get("HAI_API_KEY")
+def key_source() -> str | None:
+    """Where the active API key comes from: `environment`, or the file that holds it."""
+    source = credentials.source()
+    legacy = dotenv_values(LEGACY_ENV_PATH).get("HAI_API_KEY") if LEGACY_ENV_PATH.exists() else None
+    if source == "environment" and legacy and legacy == current_api_key():
+        return str(LEGACY_ENV_PATH)
+    return source
 
 
-def save_hai_key(key: str) -> None:
-    """Persist HAI_API_KEY to `~/.holo/.env` and the current process env."""
-    ensure_holo_dir()
-    if not USER_ENV_PATH.exists():
-        os.close(os.open(USER_ENV_PATH, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600))
-    # Tighten umask so set_key's write (and any temp-file rename) can't land the key world-readable.
-    old_umask = os.umask(0o077)
-    try:
-        set_key(str(USER_ENV_PATH), "HAI_API_KEY", key)
-    finally:
-        os.umask(old_umask)
-    with contextlib.suppress(OSError):
-        os.chmod(USER_ENV_PATH, 0o600)
-    os.environ["HAI_API_KEY"] = key
+def bootstrap_interactive(*, base_url: str | None, model: str | None) -> tuple[str | None, str | None]:
+    """Startup for `holo run`: env, skills, a one-time browser sign-in on a TTY; returns the self-hosted target."""
+    from holo_desktop.task import resolve_target
 
-
-def require_api_key(*, explicit_base_url: str | None = None, settings: HoloSettings) -> None:
-    """Ensure a HAI_API_KEY is set for Models API calls; auto-launch `holo login` on interactive TTYs."""
-    if explicit_base_url or settings.runtime.base_url or settings.auth.api_key:
-        return
-
-    from rich.console import Console
-
-    err = Console(stderr=True)
-
+    load_holo_env()
+    seed_bundled_skills()
+    base_url, model = resolve_target(base_url, model)
+    if base_url or current_api_key():
+        return base_url, model
     if sys.stdin.isatty() and sys.stdout.isatty():
-        err.print()
-        err.print("[dim]Signing in to H Company (one-time). Skip with --base-url for a local model.[/dim]")
         from holo_desktop.cli.login import login
 
         login()
-        return
-
-    err.print()
-    err.print(
-        "[bold red]No HAI_API_KEY found.[/bold red] Run [cyan]holo login[/cyan] to sign in with "
-        f"your browser, or set [bold]HAI_API_KEY[/bold] (e.g. in {USER_ENV_PATH})."
-    )
-    err.print()
-    sys.exit(1)
-
-
-def require_api_key_stdio(*, settings: HoloSettings) -> None:
-    """Non-interactive credential gate for stdio servers (mcp/acp), failing fast with a `holo login` pointer."""
-    if settings.auth.api_key or settings.runtime.base_url or settings.runtime.fake:
-        return
-    print(
-        "No HAI_API_KEY found. Run `holo login` in a terminal to sign in with your browser, "
-        f"or set HAI_API_KEY (e.g. in {USER_ENV_PATH}).",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-
-def configure_stdio_logging(logger_name: str) -> None:
-    """Stderr WARNING+ logging shared by stdio servers (`holo mcp`, `holo acp`)."""
-    logging.basicConfig(
-        level=logging.WARNING,
-        stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    logging.getLogger(logger_name).setLevel(logging.WARNING)
-
-
-def bootstrap_interactive(*, base_url: str | None, fake: bool) -> HoloSettings:
-    """Shared startup for the interactive surfaces (`holo run`, `holo serve`)."""
-    load_holo_env()
-    settings = load_holo_settings()
-    if not fake:
-        require_api_key(explicit_base_url=base_url, settings=settings)
-    seed_bundled_skills()
-    return settings
+        return base_url, model
+    print(NO_KEY_MESSAGE, file=sys.stderr)
+    raise SystemExit(1)
 
 
 def ensure_guard_running() -> None:
-    """Best-effort: nudge an already-installed kill-switch guard to load (headless surfaces).
-
-    Headless surfaces (`holo mcp` under a host, `holo serve`, `holo acp`) have no interactive process
-    to host a listener, so the OS-launched guard is what makes the double-Esc stop reachable. The guard
-    is installed by `holo install`; here we only load it if present, never install it behind the scenes.
-    """
+    """Best-effort: load an installed kill-switch guard, the only double-Esc listener under a headless host."""
     try:
         from holo_desktop.killswitch.autostart import ensure_loaded
 
@@ -116,21 +59,21 @@ def ensure_guard_running() -> None:
         logging.getLogger(__name__).debug("kill-switch guard load skipped", exc_info=True)
 
 
-def install_sigterm_graceful() -> None:
-    """Map SIGTERM to KeyboardInterrupt so a host killing the stdio server still runs async teardown."""
-    import signal
+def bootstrap_stdio() -> None:
+    """Startup for the `holo mcp` stdio server: SIGTERM teardown, sign-in gate, guard."""
+    from holo_desktop.task import resolve_target
 
+    # A host killing the server sends SIGTERM; raising KeyboardInterrupt still runs async teardown.
     with contextlib.suppress(ValueError, OSError):
         signal.signal(signal.SIGTERM, signal.default_int_handler)
-
-
-def bootstrap_stdio(logger_name: str) -> HoloSettings:
-    """Shared startup for the stdio servers (`holo mcp`, `holo acp`)."""
-    configure_stdio_logging(logger_name)
-    install_sigterm_graceful()
     load_holo_env()
-    settings = load_holo_settings()
     seed_bundled_skills()
-    require_api_key_stdio(settings=settings)
+    try:
+        base_url, _ = resolve_target()
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        raise SystemExit(1) from None
+    if not (base_url or current_api_key()):
+        print(NO_KEY_MESSAGE, file=sys.stderr)
+        raise SystemExit(1)
     ensure_guard_running()
-    return settings
