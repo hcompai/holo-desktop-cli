@@ -4,7 +4,7 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-08
 
 - Removed `holo acp` and `holo serve` (A2A). Agent hosts reach Holo through `holo mcp`; wire one with `holo install`.
 - `holo` is now a thin shell over the `hai-agents` SDK local mode (1.2.2+). The SDK owns the runtime, sign-in, and kill switch.

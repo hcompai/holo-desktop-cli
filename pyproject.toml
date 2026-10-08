@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "holo-desktop-cli"
-version = "0.0.6"
+version = "1.0.0"
 description = "H Company's desktop agent on your machine: drives real macOS, Linux, and Windows apps. A thin shell over the hai-agents SDK local mode."
 readme = "README.md"
 license = { file = "LICENSE" }
