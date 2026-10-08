@@ -29,6 +29,14 @@ def resolve_holo_command(*, path: str | None = None) -> str:
     return os.path.realpath(found)
 
 
+CODEX_APP_CLI = Path("/Applications/Codex.app/Contents/Resources/codex")
+
+
+def codex_cli() -> str:
+    """`codex` on PATH, else the CLI bundled in the Codex desktop app."""
+    return str(CODEX_APP_CLI) if not shutil.which("codex") and CODEX_APP_CLI.exists() else "codex"
+
+
 def skill_source() -> Path:
     return Path(str(resources.files("holo_desktop.host_skills").joinpath(SKILL_NAME)))
 
@@ -59,8 +67,8 @@ CLIENTS: dict[str, Client] = {
     ),
     "codex": Client(
         name="Codex (OpenAI)",
-        cli_cmd=("codex", "mcp", "add", SERVER_NAME, "--", HOLO, "mcp"),
-        cli_remove_cmds=(("codex", "mcp", "remove", SERVER_NAME),),
+        cli_cmd=(codex_cli(), "mcp", "add", SERVER_NAME, "--", HOLO, "mcp"),
+        cli_remove_cmds=((codex_cli(), "mcp", "remove", SERVER_NAME),),
         skills_dir=".agents/skills",
         home_marker=".codex",
     ),

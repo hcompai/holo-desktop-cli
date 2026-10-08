@@ -12,6 +12,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 - `--fast` now only disables model reasoning.
 - One agent drives the desktop at a time: a second `holo run` fails fast with a pointer to `holo stop`, and parallel `holo mcp` calls queue.
 - `holo install` wires Claude Code at user scope, so Holo is available in every project.
+- `holo install codex` works with only the Codex desktop app installed.
 - A self-hosted `--base-url` now needs `--model`, the Holo version your server serves.
 - Removed `holo agent-api`, `holo stop --force`, and the `holo run` flags `--port`, `--runs-dir`, `--fake`, and `--profile`.
 - Removed the expense-report example.

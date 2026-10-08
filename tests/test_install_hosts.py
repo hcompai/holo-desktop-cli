@@ -12,6 +12,8 @@ import pytest
 import yaml
 from hai_agents_cli import mcp_hosts
 
+from holo_desktop.cli import hosts
+
 # `holo_desktop.cli.__init__` re-exports `install` under the submodule name.
 install_mod = importlib.import_module("holo_desktop.cli.install")
 
@@ -58,6 +60,15 @@ def test_claude_code_is_rewired_at_user_scope(sandbox_home: Path, monkeypatch: p
     *removes, add = calls
     assert [rm[1:3] for rm in removes] == [["mcp", "remove"], ["mcp", "remove"]]
     assert add[1:] == ["mcp", "add", "--scope", "user", "--transport", "stdio", "holo", "--", FAKE_HOLO, "mcp"]
+
+
+def test_codex_desktop_app_is_wired_through_its_bundled_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    app_cli = tmp_path / "codex"
+    app_cli.touch()
+    monkeypatch.setattr(hosts, "CODEX_APP_CLI", app_cli)
+    monkeypatch.setattr(hosts.shutil, "which", lambda name, **_: None)
+
+    assert hosts.codex_cli() == str(app_cli)
 
 
 def test_install_rejects_bad_targets(sandbox_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
