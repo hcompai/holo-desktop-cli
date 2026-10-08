@@ -11,6 +11,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
 </p>
 
+> [!NOTE]
+> **HoloDesktop CLI is now part of the [Agents API](https://hub.hcompany.ai/agents-api/introduction).** Since 1.0.0, `holo` is a thin shell over the [`hai-agents-python`](https://github.com/hcompai/hai-agents-python) SDK's [local mode](https://hub.hcompany.ai/agents-api/local-mode): the same desktop agent, runnable from Python, from the `hai` CLI, or from the cloud. Keep using `holo` for your terminal and MCP hosts; reach for the SDK to build on it.
+
 Tell your computer what to do. Holo gets it done. `holo-desktop-cli` puts H Company's [Holo](https://huggingface.co/Hcompany) desktop agent on your machine, as a CLI and an MCP server. It is a thin shell over the [`hai-agents`](https://pypi.org/project/hai-agents/) SDK local mode. Use the hosted API, or run everything on your own machine for full privacy.
 
 **Docs:** The [HoloDesktop CLI docs](https://hub.hcompany.ai/holo-desktop-cli) cover setup guides, run examples, debugging advice, integration guides, and the full CLI reference.
@@ -95,6 +98,8 @@ with Client.local() as client:
     )
     print(result.answer)
 ```
+
+The same agent runs in the cloud, alongside browsers and workstations, through the [Agents API](https://hub.hcompany.ai/agents-api/introduction). See [local mode](https://hub.hcompany.ai/agents-api/local-mode) and the [`hai-agents-python`](https://github.com/hcompai/hai-agents-python) repo.
 
 ## Models
 
