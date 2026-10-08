@@ -14,6 +14,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 - `holo install` wires Claude Code at user scope, so Holo is available in every project.
 - `holo install codex` works with only the Codex desktop app installed.
 - A self-hosted `--base-url` now needs `--model`, the Holo version your server serves.
+- A self-hosted `--base-url` run gets its own runtime, so it never collides with a hosted `holo mcp`.
+- On Windows and Linux, log out and back in after upgrading so the kill switch restarts on the new version.
 - Removed `holo agent-api`, `holo stop --force`, and the `holo run` flags `--port`, `--runs-dir`, `--fake`, and `--profile`.
 - Removed the expense-report example.
 - Removed the NemoClaw host integration.
