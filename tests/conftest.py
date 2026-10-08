@@ -10,6 +10,7 @@ from hai_agents_common import credentials
 from hai_agents_local.runtime.runtime import BASE_URL_ENV, BINARY_PATH_ENV
 from hai_agents_local.runtime.state import CACHE_DIR_ENV
 
+from holo_desktop import installer_bootstrap
 from holo_desktop.cli import bootstrap
 from holo_desktop.killswitch.autostart import AutostartResult
 from holo_desktop.task import BASE_URL_ENV as SELF_HOSTED_URL_ENV
@@ -34,6 +35,7 @@ def _isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def _no_guard_autostart_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     """Neutralize the headless guard hook and `holo install`'s autostart so no test touches the OS."""
     monkeypatch.setattr(bootstrap, "ensure_guard_running", lambda: None)
+    monkeypatch.setattr(installer_bootstrap, "ensure_loaded", lambda **_: None)
     monkeypatch.setattr(
         install_mod,
         "ensure_autostart",

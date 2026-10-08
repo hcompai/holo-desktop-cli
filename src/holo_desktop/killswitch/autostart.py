@@ -65,11 +65,11 @@ def ensure_autostart(holo_cmd: str) -> tuple[AutostartResult, str]:
     return AutostartResult.UNSUPPORTED, f"autostart unsupported on {system}"
 
 
-def ensure_loaded() -> None:
+def ensure_loaded(*, restart: bool = False) -> None:
     """Best-effort: load an already-installed guard; no-op when it was never installed.
 
     Installation is ``holo install``'s job. Headless startups only nudge an installed guard to run,
-    so a machine that never opted in stays untouched.
+    so a machine that never opted in stays untouched. ``restart`` makes a running guard pick up this install's code.
     """
     if platform.system() != "Darwin":
         # Windows Startup entries and Linux XDG autostart are loaded by the OS at login; nothing to nudge.
@@ -77,7 +77,7 @@ def ensure_loaded() -> None:
     path = macos_plist_path()
     if not path.exists():
         return
-    _run_quietly(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(path)])
+    _activate_macos(path, restart=restart)
 
 
 def macos_plist_path() -> Path:
@@ -135,11 +135,18 @@ def _ensure_macos(holo_cmd: str) -> tuple[AutostartResult, str]:
     GUARD_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     path = macos_plist_path()
     changed = _write_if_changed(path, render_macos_plist(holo_cmd, GUARD_LOG_PATH))
-    uid = os.getuid()
     if changed:
-        _run_quietly(["launchctl", "bootout", f"gui/{uid}/{GUARD_LABEL}"])
-    _run_quietly(["launchctl", "bootstrap", f"gui/{uid}", str(path)])
+        _run_quietly(["launchctl", "bootout", f"gui/{os.getuid()}/{GUARD_LABEL}"])
+    _activate_macos(path, restart=True)
     return (AutostartResult.INSTALLED if changed else AutostartResult.SKIPPED), str(path)
+
+
+def _activate_macos(path: Path, *, restart: bool) -> None:
+    uid = os.getuid()
+    _run_quietly(["launchctl", "bootstrap", f"gui/{uid}", str(path)])
+    if restart:
+        # The plist is unchanged across upgrades, so a running guard would keep the previous install's code.
+        _run_quietly(["launchctl", "kickstart", "-k", f"gui/{uid}/{GUARD_LABEL}"])
 
 
 def _ensure_windows(holo_cmd: str) -> tuple[AutostartResult, str]:

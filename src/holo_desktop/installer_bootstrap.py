@@ -10,6 +10,7 @@ from hai_agents_local.runtime.manifest import PINNED_RUNTIME_VERSION
 from rich.console import Console
 
 from holo_desktop.customization import seed_bundled_skills
+from holo_desktop.killswitch.autostart import ensure_loaded
 
 
 def bootstrap_installer(*, login: bool = False, install_hosts: bool = False) -> None:
@@ -22,6 +23,7 @@ def bootstrap_installer(*, login: bool = False, install_hosts: bool = False) -> 
         err.print(f"[bold red]x[/bold red] {exc}")
         raise SystemExit(1) from exc
     err.print(f"[green]ok[/green] runtime ready: [cyan]{runtime_path}[/cyan]")
+    ensure_loaded(restart=True)
 
     if login:
         from holo_desktop.cli.login import login as run_login
