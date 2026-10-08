@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
+import anyio
 import pytest
 from agent_interface.specs.skill import Skill
 from agp_types import TrajectoryEvent
@@ -47,6 +48,7 @@ class FakeHandle:
         return SimpleNamespace(status=self.status, answer=self.answer, error=self.error)
 
     async def cancel(self) -> None:
+        await asyncio.sleep(0.01)
         self.cancelled = True
 
 
@@ -89,6 +91,25 @@ def test_interrupted_task_cancels_the_session() -> None:
     with pytest.raises(asyncio.CancelledError):
         _run(client, interrupt)
     assert client.handle.cancelled
+
+
+def test_cancelled_mcp_call_ends_the_session_before_returning() -> None:
+    client = FakeClient()
+
+    async def hang(event: TrajectoryEvent) -> None:
+        await anyio.sleep(10)
+
+    async def call() -> None:
+        await run_task(client, build_agent(), "do it", max_steps=None, max_time_s=None, on_event=hang)  # type: ignore[arg-type]
+
+    async def cancel_mid_task() -> bool:
+        async with anyio.create_task_group() as group:
+            group.start_soon(call)
+            await anyio.sleep(0.01)
+            group.cancel_scope.cancel()
+        return client.handle.cancelled
+
+    assert asyncio.run(cancel_mid_task())
 
 
 def test_agent_carries_user_customization_and_fast_disables_reasoning() -> None:

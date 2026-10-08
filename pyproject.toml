@@ -24,6 +24,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "anyio>=4.5",
     # Typed agent events and skills (agent_interface, agp_types) for the terminal feed and ~/.holo skills.
     "hai-agent-api>=0.1.113",
     "hai-agents[desktop]>=1.2.2",

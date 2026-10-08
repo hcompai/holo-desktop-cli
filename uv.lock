@@ -605,6 +605,7 @@ name = "holo-desktop-cli"
 version = "0.0.6"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "hai-agent-api" },
     { name = "hai-agents", extra = ["desktop"] },
     { name = "httpx" },
@@ -629,6 +630,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.5" },
     { name = "hai-agent-api", specifier = ">=0.1.113" },
     { name = "hai-agents", extras = ["desktop"], git = "https://github.com/hcompai/hai-agents-python?rev=f9b29e075654fd713d5da75a4f6d0fe736a72ba6" },
     { name = "httpx", specifier = ">=0.28.1" },

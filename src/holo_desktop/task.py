@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+import anyio
 from agp_types import TrajectoryEvent
 from hai_agents import Agent, AsyncClient
 from hai_agents_local.desktop_lock import DesktopBusyError
@@ -91,7 +91,8 @@ async def run_task(
         result = await handle.wait_for_completion()
     finally:
         # A one-shot task that settles idle would otherwise keep its bridge, and the machine's desktop claim.
-        with contextlib.suppress(Exception):
-            await asyncio.shield(handle.cancel())
+        # `anyio` re-delivers an MCP call's cancellation at every await; only its shield lets the cancel finish.
+        with anyio.CancelScope(shield=True), contextlib.suppress(Exception):
+            await handle.cancel()
     answer = "" if result.answer is None else result.answer if isinstance(result.answer, str) else str(result.answer)
     return Outcome(status=str(result.status), answer=answer, error=result.error)
