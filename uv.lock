@@ -568,8 +568,8 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.2.1"
-source = { git = "https://github.com/hcompai/hai-agents-python?rev=78144d5ecc11689998eebdcf136d649e162a94da#78144d5ecc11689998eebdcf136d649e162a94da" }
+version = "1.2.2"
+source = { git = "https://github.com/hcompai/hai-agents-python?rev=f9b29e075654fd713d5da75a4f6d0fe736a72ba6#f9b29e075654fd713d5da75a4f6d0fe736a72ba6" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
@@ -630,7 +630,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "hai-agent-api", specifier = ">=0.1.113" },
-    { name = "hai-agents", extras = ["desktop"], git = "https://github.com/hcompai/hai-agents-python?rev=78144d5ecc11689998eebdcf136d649e162a94da" },
+    { name = "hai-agents", extras = ["desktop"], git = "https://github.com/hcompai/hai-agents-python?rev=f9b29e075654fd713d5da75a4f6d0fe736a72ba6" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10,<2" },
     { name = "pydantic", specifier = ">=2.11.4" },

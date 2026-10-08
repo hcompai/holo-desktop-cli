@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
     # Typed agent events and skills (agent_interface, agp_types) for the terminal feed and ~/.holo skills.
     "hai-agent-api>=0.1.113",
-    "hai-agents[desktop]>=1.2.1",
+    "hai-agents[desktop]>=1.2.2",
     "httpx>=0.28.1",
     "mcp>=1.10,<2",
     "pydantic>=2.11.4",
@@ -38,7 +38,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-hai-agents = { git = "https://github.com/hcompai/hai-agents-python", rev = "78144d5ecc11689998eebdcf136d649e162a94da" }
+hai-agents = { git = "https://github.com/hcompai/hai-agents-python", rev = "f9b29e075654fd713d5da75a4f6d0fe736a72ba6" }
 
 [project.urls]
 Homepage = "https://hcompany.ai"

@@ -7,7 +7,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 ## [Unreleased]
 
 - Removed `holo acp` and `holo serve` (A2A). Agent hosts reach Holo through `holo mcp`; wire one with `holo install`.
-- `holo` is now a thin shell over the `hai-agents` SDK local mode (1.2.1+). The SDK owns the runtime, sign-in, and kill switch.
+- `holo` is now a thin shell over the `hai-agents` SDK local mode (1.2.2+). The SDK owns the runtime, sign-in, and kill switch.
 - `holo login` saves the key to `~/.config/hai/.env`, shared with the `hai` CLI; a key in `~/.holo/.env` still works. Added `holo logout` and `holo login --key`.
 - `--fast` now only disables model reasoning.
 - One agent drives the desktop at a time: a second `holo run` fails fast with a pointer to `holo stop`, and parallel `holo mcp` calls queue.
