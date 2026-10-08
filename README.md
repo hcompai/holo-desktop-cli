@@ -6,8 +6,11 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/holo-desktop-cli/"><img src="https://img.shields.io/pypi/v/holo-desktop-cli?label=holo-desktop-cli" alt="holo-desktop-cli on PyPI" /></a>
+  <a href="https://github.com/hcompai/hai-agents-python"><img src="https://img.shields.io/pypi/v/hai-agents?label=hai-agents%20SDK" alt="hai-agents SDK on PyPI" /></a>
+  <a href="https://hub.hcompany.ai/holo-desktop-cli"><img src="https://img.shields.io/badge/docs-hub.hcompany.ai-blue" alt="Docs" /></a>
+  <a href="https://hub.hcompany.ai/agents-api/introduction"><img src="https://img.shields.io/badge/Agents%20API-docs-blue" alt="Agents API docs" /></a>
   <a href="https://github.com/hcompai/holo-desktop-cli/actions/workflows/ci.yml"><img src="https://github.com/hcompai/holo-desktop-cli/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
-  <a href="https://codecov.io/gh/hcompai/holo-desktop-cli"><img src="https://codecov.io/gh/hcompai/holo-desktop-cli/branch/main/graph/badge.svg" alt="Coverage" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
 </p>
 
