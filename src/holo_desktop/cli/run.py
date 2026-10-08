@@ -54,12 +54,8 @@ def run(
 
     from holo_desktop import killswitch
     from holo_desktop.cli.bootstrap import bootstrap_interactive
-    from holo_desktop.task import resolve_target
 
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    bootstrap_interactive(base_url=base_url)
-    base_url, model = resolve_target(base_url, model)
-
     err = Console(stderr=True)
     out = Console()
 
@@ -75,6 +71,11 @@ def run(
             )
         )
         raise SystemExit(1)
+
+    try:
+        base_url, model = bootstrap_interactive(base_url=base_url, model=model)
+    except ValueError as exc:
+        die("missing model", str(exc))
 
     listener = None
     if not no_kill_switch and killswitch.is_interactive_tty():

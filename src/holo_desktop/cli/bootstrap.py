@@ -31,17 +31,20 @@ def key_source() -> str | None:
     return source
 
 
-def bootstrap_interactive(*, base_url: str | None) -> None:
-    """Startup for `holo run`: env, skills, and a one-time browser sign-in on a TTY."""
+def bootstrap_interactive(*, base_url: str | None, model: str | None) -> tuple[str | None, str | None]:
+    """Startup for `holo run`: env, skills, a one-time browser sign-in on a TTY; returns the self-hosted target."""
+    from holo_desktop.task import resolve_target
+
     load_holo_env()
     seed_bundled_skills()
+    base_url, model = resolve_target(base_url, model)
     if base_url or current_api_key():
-        return
+        return base_url, model
     if sys.stdin.isatty() and sys.stdout.isatty():
         from holo_desktop.cli.login import login
 
         login()
-        return
+        return base_url, model
     print(NO_KEY_MESSAGE, file=sys.stderr)
     raise SystemExit(1)
 
@@ -65,7 +68,11 @@ def bootstrap_stdio() -> None:
         signal.signal(signal.SIGTERM, signal.default_int_handler)
     load_holo_env()
     seed_bundled_skills()
-    base_url, _ = resolve_target()
+    try:
+        base_url, _ = resolve_target()
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        raise SystemExit(1) from None
     if not (base_url or current_api_key()):
         print(NO_KEY_MESSAGE, file=sys.stderr)
         raise SystemExit(1)

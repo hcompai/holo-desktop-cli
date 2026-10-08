@@ -10,9 +10,12 @@ from holo_desktop.task import resolve_target
 
 
 def check_login() -> CheckResult:
-    base_url, model = resolve_target()
+    try:
+        base_url, model = resolve_target()
+    except ValueError as exc:
+        return CheckResult("login", False, "self-hosted server without a model", fix=str(exc))
     if base_url:
-        return CheckResult("login", True, f"self-hosted model {model or '(unset)'} at {base_url}")
+        return CheckResult("login", True, f"self-hosted model {model} at {base_url}")
     source = key_source()
     if source:
         return CheckResult("login", True, f"API key from {source}")

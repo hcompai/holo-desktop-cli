@@ -44,5 +44,6 @@ def test_mcp_without_credentials_fails_fast_with_login_hint(
 
 def test_mcp_runs_without_key_against_a_self_hosted_model(holo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HAI_AGENT_RUNTIME_BASE_URL", "http://localhost:8000/v1")
+    monkeypatch.setenv("HAI_AGENT_RUNTIME_MODEL", "holo3")
 
     mcp_mod.mcp()

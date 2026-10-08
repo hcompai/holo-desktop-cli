@@ -51,7 +51,11 @@ def build_agent(*, model: str | None = None, fast: bool = False) -> Agent:
 
 def resolve_target(base_url: str | None = None, model: str | None = None) -> tuple[str | None, str | None]:
     """Self-hosted endpoint and model: explicit values, else `HAI_AGENT_RUNTIME_BASE_URL` / `_MODEL`."""
-    return base_url or os.environ.get(BASE_URL_ENV) or None, model or os.environ.get(MODEL_ENV) or None
+    base_url = base_url or os.environ.get(BASE_URL_ENV) or None
+    model = model or os.environ.get(MODEL_ENV) or None
+    if base_url and not model:
+        raise ValueError(f"a self-hosted server needs the model it serves: pass --model or set {MODEL_ENV}")
+    return base_url, model
 
 
 async def open_client(*, base_url: str | None = None, model: str | None = None) -> AsyncClient:

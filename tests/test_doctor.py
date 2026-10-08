@@ -38,5 +38,6 @@ def test_missing_login_fails_with_pointer(skills: Path, capsys: pytest.CaptureFi
 
 def test_self_hosted_model_needs_no_key(skills: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HAI_AGENT_RUNTIME_BASE_URL", "http://localhost:8000/v1")
+    monkeypatch.setenv("HAI_AGENT_RUNTIME_MODEL", "holo3")
 
     doctor.doctor()
