@@ -569,11 +569,15 @@ wheels = [
 [[package]]
 name = "hai-agents"
 version = "1.2.2"
-source = { git = "https://github.com/hcompai/hai-agents-python?rev=6fa989137e59e313b725e231fc5325ae3a8d7689#6fa989137e59e313b725e231fc5325ae3a8d7689" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5d/7c/3df2eba2920c1e87d94d4ccb32355b2bb009a1637b85d084251592a58f1a/hai_agents-1.2.2.tar.gz", hash = "sha256:f78f41ccd072d8190935b1ff95d637811b3c739a754636cdd891731bc03ef267", size = 1305307, upload-time = "2026-10-08T13:12:11.734Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/4a/75a62c7c9484e0cc31ab6d5131b2b73bc51f2d8aece9fa82ee48afe79ef1/hai_agents-1.2.2-py3-none-any.whl", hash = "sha256:5f3e329e2a65f54d367ad00d4df24d1c3a8313465ab8811d32e9b533983c4f76", size = 287592, upload-time = "2026-10-08T13:12:10.109Z" },
 ]
 
 [package.optional-dependencies]
@@ -632,7 +636,7 @@ dev = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.5" },
     { name = "hai-agent-api", specifier = ">=0.1.113" },
-    { name = "hai-agents", extras = ["desktop"], git = "https://github.com/hcompai/hai-agents-python?rev=6fa989137e59e313b725e231fc5325ae3a8d7689" },
+    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.2.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10,<2" },
     { name = "pydantic", specifier = ">=2.11.4" },

@@ -38,9 +38,6 @@ dependencies = [
     "tyro>=0.8",
 ]
 
-[tool.uv.sources]
-hai-agents = { git = "https://github.com/hcompai/hai-agents-python", rev = "6fa989137e59e313b725e231fc5325ae3a8d7689" }
-
 [project.urls]
 Homepage = "https://hcompany.ai"
 Repository = "https://github.com/hcompai/holo-desktop-cli"
