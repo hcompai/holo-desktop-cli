@@ -1,0 +1,58 @@
+name: Sync hai-agents
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      sdk:
+        description: "hai-agents version to sync to (default: latest on PyPI)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-hai-agents
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint holo-desktop-cli token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HAI_RUNTIME_RELEASE_APP_ID }}
+          private-key: ${{ secrets.HAI_RUNTIME_RELEASE_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Stage the release for the latest hai-agents
+        id: sync
+        env:
+          SDK: ${{ inputs.sdk }}
+        run: python3 scripts/sync_hai_agents.py ${SDK:+--sdk "$SDK"}
+
+      - name: Lock
+        if: steps.sync.outputs.changed == 'true'
+        run: uv lock --upgrade-package hai-agents
+
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: sync/hai-agents
+          delete-branch: true
+          add-paths: |
+            pyproject.toml
+            uv.lock
+            install/manifest.json
+            CHANGELOG.md
+          commit-message: "Release ${{ steps.sync.outputs.version }}"
+          title: "Release ${{ steps.sync.outputs.version }}"
+          body: ""
