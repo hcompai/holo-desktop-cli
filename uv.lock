@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -568,16 +568,16 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.2.6"
+version = "1.2.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c0/39/766b5fe3994326fa768cdb177ecf9349d3342b9359bb7502a46d0b6108e7/hai_agents-1.2.6.tar.gz", hash = "sha256:ef48b1e354aff0fb26bcac48b006f7210cf92ec6300c4acb56d64d7cf690019a", size = 1307036, upload-time = "2026-10-15T22:08:45.663Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/58/4e29772257ee619a34b8278b3968c8fb7707b42df7100874d684d0682279/hai_agents-1.2.7.tar.gz", hash = "sha256:5a12a0dbda4560c2c2f4d4562ccde72c6fad6cecc8fd1ac70f850de3114d08e0", size = 1318087, upload-time = "2026-10-21T00:29:20.842Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/22/e977d7f50d3cb0f04fdf6c7eda4687877beca72fe26b30f1e59e88362e15/hai_agents-1.2.6-py3-none-any.whl", hash = "sha256:76279d2f6072a5521cf86b41f384cd0a183a51c6c63029ef62fc37d0614356db", size = 288946, upload-time = "2026-10-15T22:08:43.828Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/67/3a99e6be842f64faa300cb1f44a6c1012986b55abb2f56037d111219328e/hai_agents-1.2.7-py3-none-any.whl", hash = "sha256:427322c6543d80a31eb6f7be581c805aa63a26b8b7f0eb2102576afec9da1eb9", size = 297117, upload-time = "2026-10-21T00:29:19.027Z" },
 ]
 
 [package.optional-dependencies]
@@ -606,7 +606,7 @@ desktop = [
 
 [[package]]
 name = "holo-desktop-cli"
-version = "1.0.2"
+version = "1.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
@@ -636,7 +636,7 @@ dev = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.5" },
     { name = "hai-agent-api", specifier = ">=0.1.113" },
-    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.2.6" },
+    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.2.7" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10,<2" },
     { name = "pydantic", specifier = ">=2.11.4" },
