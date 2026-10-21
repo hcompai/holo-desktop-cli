@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "holo-desktop-cli"
-version = "1.0.2"
+version = "1.0.3"
 description = "H Company's desktop agent on your machine: drives real macOS, Linux, and Windows apps. A thin shell over the hai-agents SDK local mode."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -27,7 +27,7 @@ dependencies = [
     "anyio>=4.5",
     # Typed agent events and skills (agent_interface, agp_types) for the terminal feed and ~/.holo skills.
     "hai-agent-api>=0.1.113",
-    "hai-agents[desktop]>=1.2.6",
+    "hai-agents[desktop]>=1.2.7",
     "httpx>=0.28.1",
     "mcp>=1.10,<2",
     "pydantic>=2.11.4",
