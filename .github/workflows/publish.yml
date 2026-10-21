@@ -277,8 +277,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | head -n 5
-          curl -fsSL "${INSTALLER_BASE_URL}/install.ps1" | head -n 5
+          curl -fsSL "${INSTALLER_BASE_URL}/install.sh" | sed -n 1,5p
+          curl -fsSL "${INSTALLER_BASE_URL}/install.ps1" | sed -n 1,5p
           expected_version="$(jq -r '.holo_version' install/manifest.json)"
           for attempt in $(seq 1 11); do
             manifest="$(curl -fsSL "${INSTALLER_BASE_URL}/install/manifest.json")"
