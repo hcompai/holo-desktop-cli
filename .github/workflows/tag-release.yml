@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
 jobs:
   tag:
     runs-on: ubuntu-latest
