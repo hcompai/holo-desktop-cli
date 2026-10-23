@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: publish-${{ inputs.target == 'testpypi' && github.ref || 'release' }}
+  cancel-in-progress: false
+
 jobs:
   quality:
     if: inputs.target != 'installer-cdn'
