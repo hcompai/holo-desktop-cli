@@ -2,7 +2,7 @@
 
 `holo` lives in [`hai-agents-python`](https://github.com/hcompai/hai-agents-python). Open CLI issues and PRs there.
 
-This repo holds only the `holo-desktop-cli` package metadata, the installers in `install/`, and `examples/`.
+This repo holds only the `holo-desktop-cli` package metadata, and the installers in `install/`.
 
 ```bash
 uv sync --all-groups

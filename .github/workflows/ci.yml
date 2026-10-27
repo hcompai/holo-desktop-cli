@@ -118,6 +118,3 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest
       - run: uv run holo --help
-      - name: examples
-        if: matrix.os == 'ubuntu-latest'
-        run: scripts/ci_examples.sh

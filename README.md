@@ -90,4 +90,4 @@ The installer removes the old `holo guard` login item. With pip, remove it yours
 - [Integrate with coding agents](https://hub.hcompany.ai/agents-api/coding-agents)
 - [Security and privacy](https://hub.hcompany.ai/agents-api/cli/security)
 - [Changelog](https://hub.hcompany.ai/agents-api/changelog)
-- [Example: UI QA with a coding agent](examples/software_qa/)
+- [Example: UI QA with a coding agent](https://hub.hcompany.ai/agents-api/cli/example-ui-qa)
