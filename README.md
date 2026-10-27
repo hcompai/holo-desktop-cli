@@ -12,7 +12,7 @@
 </p>
 
 > [!IMPORTANT]
-> **HoloDesktop CLI is now part of the [Agents API](https://hub.hcompany.ai/agents-api/introduction).** The `holo` command ships with the [`hai-agents`](https://github.com/hcompai/hai-agents-python) Python SDK. This package only installs it. New features, issues, and docs live there.
+> **HoloDesktop CLI is now part of the [Agents API](https://hub.hcompany.ai/agents-api/introduction).** The `holo` command ships with the [`hai-agents`](https://github.com/hcompai/hai-agents-python) Python SDK. This package installs it.
 
 ## Install
 

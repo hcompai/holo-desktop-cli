@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "holo-desktop-cli"
 version = "1.1.0"
-description = "HoloDesktop CLI is now part of the Agents API: this package installs the holo CLI from hai-agents."
+description = "Installs the holo CLI from hai-agents."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
