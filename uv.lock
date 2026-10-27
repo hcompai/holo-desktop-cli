@@ -568,16 +568,16 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.3.0"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/92/7e/52fc4c21bf44523afe89187289a22275e31733323502ba59f7754d895434/hai_agents-1.3.0.tar.gz", hash = "sha256:f6823413e5050ff6c8e3eca6e955c58d9ecac7616592cbc9ac45d8b0181fcfaa", size = 1325304, upload-time = "2026-10-23T12:59:09.781Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/8a/a1a5a161b274f8ca84e3f54c67469b8abd9446dd2d7c261917bfe0ecc2b1/hai_agents-1.4.0.tar.gz", hash = "sha256:4c4182bb471e0b16ef34fb661a61df63480b7930de787f872bf703be6305d8ce", size = 1418083, upload-time = "2026-10-27T16:03:02.086Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/0f/94b4c29fec3f9ba52e07874ca82c8cd2730ec6343dbf7aa289c9493c2785/hai_agents-1.3.0-py3-none-any.whl", hash = "sha256:115bae97536ece24d73dad8a426bfb96c1cef697fd426ea7874054dd3d3cba16", size = 304728, upload-time = "2026-10-23T12:59:08.375Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/b5/a26e252cd89854e5da974c21c5aa9760b57c8184bedc98a41897f8aa9e34/hai_agents-1.4.0-py3-none-any.whl", hash = "sha256:c89bf06f9686ab3758cd3576a5fff966c04cbc0935ed7e93920885cc9ff201e5", size = 343789, upload-time = "2026-10-27T16:03:00.109Z" },
 ]
 
 [package.optional-dependencies]
@@ -606,7 +606,7 @@ desktop = [
 
 [[package]]
 name = "holo-desktop-cli"
-version = "1.0.4"
+version = "1.0.5"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
@@ -636,7 +636,7 @@ dev = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.5" },
     { name = "hai-agent-api", specifier = ">=0.1.113" },
-    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.3.0" },
+    { name = "hai-agents", extras = ["desktop"], specifier = ">=1.4.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.10,<2" },
     { name = "pydantic", specifier = ">=2.11.4" },
