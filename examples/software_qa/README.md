@@ -2,7 +2,7 @@
 
 This example shows the closed loop between Claude Code and Holo: Claude Code
 edits a running app, asks Holo to test the UI through the normal
-`holo_desktop(task)` MCP tool, then uses the visible QA report to fix and verify
+`run_agent(task, agent="h/holo-desktop")` MCP tool, then uses the visible QA report to fix and verify
 the source change.
 
 ## What you will do
@@ -28,7 +28,6 @@ evidence while Claude Code diagnoses and patches the source.
 From the `holo-desktop-cli` checkout:
 
 ```bash
-uv sync
 cd examples/software_qa
 npm install
 npm run dev
@@ -39,18 +38,19 @@ page: `demo@nimbus.test / holo-qa-1`.
 
 ## Prepare Holo
 
-For hosted mode, sign in once:
+Install the `holo` CLI and sign in once:
 
 ```bash
-uv run holo login
-uv run holo install claude-code
+pip install "hai-agents[cli,workstation]"
+holo login
+holo mcp install claude-code
 ```
 
 This wires the root Holo MCP server into Claude Code.
 
 The checked-in Claude Code skill at `.claude/skills/holo-qa/SKILL.md` teaches
 Claude how to choose a spec from `qa/`, compose a self-contained QA task, and
-call `holo_desktop(task)`.
+call `run_agent(task, agent="h/holo-desktop")`.
 
 ## Run the workflow
 
