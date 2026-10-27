@@ -2,9 +2,9 @@
 
 `holo-desktop-cli` is published to [PyPI](https://pypi.org/project/holo-desktop-cli/) on every `v*` tag, via the [`publish.yml`](.github/workflows/publish.yml) GitHub Actions workflow. Authentication is OIDC (PyPI [Trusted Publishers](https://docs.pypi.org/trusted-publishers/)); no API tokens are stored as secrets.
 
-## Runtime artifacts
+## Picking up a new hai-agents
 
-The [`hai-agents`](https://pypi.org/project/hai-agents/) SDK pins the `hai-agent-runtime` version and its per-platform sha256 digests, and downloads the binary on first run. To ship a new runtime, release an SDK that pins it, then raise the `hai-agents` floor in `pyproject.toml`.
+The hourly [`sync-hai-agents.yml`](.github/workflows/sync-hai-agents.yml) workflow opens a patch release PR when a newer `hai-agents` ships. Merging it tags and publishes.
 
 ## One-time setup (PyPI side)
 
@@ -63,9 +63,9 @@ After `publish-pypi` succeeds, the `release` job creates the GitHub Release and 
 Verify:
 
 ```bash
-curl -fsSL https://install.holo.ai/install.sh | head
-curl -fsSL https://install.holo.ai/install.ps1 | head
-curl -fsSL https://install.holo.ai/install/manifest.json | python -m json.tool
+curl -fsSL https://install.hcompany.ai/install.sh | head
+curl -fsSL https://install.hcompany.ai/install.ps1 | head
+curl -fsSL https://install.hcompany.ai/install/manifest.json | python -m json.tool
 ```
 
 The Windows ARM64 `cryptography` wheel lives under an immutable, version-scoped CDN key (`wheels/windows-arm64/cryptography/<version>/…`). The release job downloads the already-published wheel when one exists and only builds from source when the CDN answers 404, so the manifest always points at the bytes the CDN serves. Any other download error fails the job rather than rebuilding over the immutable object.
@@ -88,7 +88,7 @@ The OIDC trust policy of `HoloDesktopCliInstallerReleaseRole` decides which refs
 
 ## Dry-run on TestPyPI
 
-`workflow_dispatch` → choose `testpypi` → runs the build + uploads to https://test.pypi.org/project/holo-desktop-cli/ without touching prod. Useful for testing workflow changes; not gated on runtime artifacts.
+`workflow_dispatch` → choose `testpypi` → runs the build + uploads to https://test.pypi.org/project/holo-desktop-cli/ without touching prod. Useful for testing workflow changes.
 
 ## If publish fails
 

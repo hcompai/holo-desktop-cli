@@ -7,8 +7,8 @@ UI-facing change, verify the relevant user flow with the markdown specs in
 ## Holo QA
 
 Use the local `holo-qa` skill for UI QA. It reads `qa/*.md` specs and calls the
-normal installed Holo MCP tool, `holo_desktop(task)`. Set up Claude Code with
-`uv run holo install claude-code` from the holo-desktop-cli checkout. Do not
+normal installed Holo MCP tool, `run_agent(task, agent="h/holo-desktop")`. Set up Claude Code with
+`holo mcp install claude-code`. Do not
 configure or launch a project-local QA MCP server for this example, and do not
 use a Python QA runner.
 

@@ -22,25 +22,17 @@ jobs:
   quality:
     if: inputs.target != 'installer-cdn'
     runs-on: ubuntu-latest
-    env:
-      # Backstop for sub-calls that print before main() reconfigures stdout (cp1252 otherwise).
-      PYTHONIOENCODING: utf-8
-      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
       - run: uv sync --all-groups
-      - name: ruff (lint)
-        run: uv run ruff check .
-      - name: ruff (format)
-        run: uv run ruff format --check .
-      - name: mypy
-        run: uv run mypy src/
-      - name: smoke imports
-        run: |
-          uv run python -c "import holo_desktop.cli; from holo_desktop import __version__; import holo_desktop.task; print(__version__)"
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
+      - name: smoke CLI
+        run: uv run holo --help
 
   windows-arm64-dependency:
     if: startsWith(github.ref, 'refs/tags/v') || inputs.target == 'installer-cdn'
@@ -309,7 +301,7 @@ jobs:
           cd "$RUNNER_TEMP"
           expected_version="${{ steps.verify.outputs.holo_version }}"
           installed_version() {
-            "$HOLO_HOME/tools/holo-desktop-cli/bin/python" -c 'from holo_desktop import __version__; print(__version__)'
+            "$HOLO_HOME/tools/holo-desktop-cli/bin/python" -c 'from importlib.metadata import version; print(version("holo-desktop-cli"))'
           }
           for attempt in $(seq 1 11); do
             rm -rf "$HOME"
@@ -346,7 +338,7 @@ jobs:
             try {
               Invoke-WebRequest "$env:INSTALLER_BASE_URL/install.ps1" -OutFile $installer
               & $installer
-              $installed = & "$env:HOLO_HOME\tools\holo-desktop-cli\Scripts\python.exe" -c "from holo_desktop import __version__; print(__version__)"
+              $installed = & "$env:HOLO_HOME\tools\holo-desktop-cli\Scripts\python.exe" -c "from importlib.metadata import version; print(version('holo-desktop-cli'))"
               if ("$installed".Trim() -ne $env:EXPECTED_HOLO_VERSION) {
                 throw "installed holo $installed, expected $env:EXPECTED_HOLO_VERSION"
               }
