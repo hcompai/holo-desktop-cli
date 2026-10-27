@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FLOOR = re.compile(r'"hai-agents\[desktop\]>=(\d+\.\d+\.\d+)"')
+FLOOR = re.compile(r'"hai-agents\[cli,workstation\]>=(\d+\.\d+\.\d+)"')
 VERSION = re.compile(r'^version = "(\d+)\.(\d+)\.(\d+)"', re.MULTILINE)
 PIN_URL = "https://raw.githubusercontent.com/hcompai/hai-agents-python/v{}/src/hai_agents_local/runtime/pin.json"
 
@@ -32,12 +32,12 @@ def sync(root: Path, sdk: str, runtime: str | None, today: str) -> str | None:
     floor = FLOOR.search(text)
     version = VERSION.search(text)
     if floor is None or version is None:
-        raise SystemExit("pyproject.toml has no hai-agents[desktop] floor or project version")
+        raise SystemExit("pyproject.toml has no hai-agents[cli,workstation] floor or project version")
     if _parse(sdk) <= _parse(floor.group(1)):
         return None
     major, minor, patch = version.groups()
     new = f"{major}.{minor}.{int(patch) + 1}"
-    text = FLOOR.sub(f'"hai-agents[desktop]>={sdk}"', text, count=1)
+    text = FLOOR.sub(f'"hai-agents[cli,workstation]>={sdk}"', text, count=1)
     pyproject.write_text(VERSION.sub(f'version = "{new}"', text, count=1))
 
     manifest = root / "install" / "manifest.json"

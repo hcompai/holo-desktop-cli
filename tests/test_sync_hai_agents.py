@@ -30,7 +30,7 @@ def test_a_newer_sdk_stages_a_consistent_patch_release(tmp_path: Path) -> None:
     assert new == f"{major}.{minor}.{int(patch) + 1}"
     project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
     assert project["version"] == new
-    assert "hai-agents[desktop]>=99.0.0" in project["dependencies"]
+    assert "hai-agents[cli,workstation]>=99.0.0" in project["dependencies"]
     assert json.loads((root / "install" / "manifest.json").read_text())["holo_version"] == new
     notes = (root / "CHANGELOG.md").read_text()
     assert f"## [{new}] - 2026-10-16\n\n- Requires `hai-agents` 99.0.0+ (`hai-agent-runtime` 9.9.9).\n" in notes

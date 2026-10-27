@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTALL_DIR = ROOT / "install"
 
 
-def test_manifest_supports_only_v1_platforms_with_real_hashes() -> None:
+def test_manifest_matches_package_and_lock() -> None:
     manifest = json.loads((INSTALL_DIR / "manifest.json").read_text())
     assert set(manifest["supported_platforms"]) == {
         "darwin-arm64",
@@ -43,48 +43,8 @@ def test_manifest_supports_only_v1_platforms_with_real_hashes() -> None:
     assert dependencies[0]["version"] == locked_cryptography["version"]
 
 
-def test_install_sh_has_supported_and_unsupported_platform_paths() -> None:
-    script = INSTALL_DIR / "install.sh"
-    subprocess.run(["sh", "-n", str(script)], check=True)
-    text = script.read_text()
-    assert "Darwin" in text
-    assert "arm64" in text
-    assert "linux-x86_64" in text
-    assert "darwin-x86_64" in text
-    assert "HOLO_INSTALL_SKIP_PATH" in text
-    assert "HOLO_INSTALL_SKIP_RUN_SETUP" in text
-    assert "HOLO_INSTALL_MANIFEST_URL" in text
-    assert "https://install.hcompany.ai/install/manifest.json" in text
-    assert 'path_line="export PATH=\\"$HOLO_HOME/bin:\\$PATH\\""' in text
-    assert "--no-bin" in text
-    assert "--reinstall-package holo-desktop-cli" in text
-    assert "python -m holo_desktop.installer_bootstrap" in text
-    assert 'holo" setup' not in text
-
-
-def test_install_ps1_targets_supported_windows_architectures_and_user_path() -> None:
-    text = (INSTALL_DIR / "install.ps1").read_text()
-    assert "$RunningOnWindows =" in text
-    assert "$IsWindows =" not in text
-    assert "[Environment]::SetEnvironmentVariable" in text
-    assert "windows-x86_64" in text
-    assert "windows-arm64" in text
-    assert "--managed-python" in text
-    assert "installed Python architecture" in text
-    assert "https://install.hcompany.ai/install/manifest.json" in text
-    assert "HOLO_INSTALL_SKIP_RUN_SETUP" in text
-    assert "--no-bin" in text
-    assert "--no-registry" in text
-    assert "--reinstall-package holo-desktop-cli" in text
-    assert "--find-links" in text
-    assert '"--no-build-package", [string]$Dependency.name' in text
-    assert "dependency_wheels" in text
-    assert "sha256 mismatch for Windows ARM64 dependency" in text
-    assert "python -m holo_desktop.installer_bootstrap" in text
-    assert 'holo.exe") setup' not in text
-
-
-def test_install_ps1_parses_when_powershell_is_available() -> None:
+def test_installers_parse() -> None:
+    subprocess.run(["sh", "-n", str(INSTALL_DIR / "install.sh")], check=True)
     shell = shutil.which("pwsh") or shutil.which("powershell")
     if shell is None:
         return
@@ -142,11 +102,3 @@ if ($platform -ne $expected) {
 }
 """
     subprocess.run([shell, "-NoProfile", "-Command", command], cwd=ROOT, check=True)
-
-
-def test_holo_help_does_not_expose_installer_bootstrap() -> None:
-    result = subprocess.run(
-        [sys.executable, "-m", "holo_desktop", "--help"], check=True, capture_output=True, text=True
-    )
-    assert "{run,stop,guard,mcp,install,login,logout,whoami,doctor}" in result.stdout
-    assert "installer_bootstrap" not in result.stdout

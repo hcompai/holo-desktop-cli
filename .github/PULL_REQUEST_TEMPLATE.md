@@ -4,11 +4,11 @@
 
 ## How tested
 
-<!-- e.g. `make check` (ruff + mypy + pytest), a manual `holo ...` run, new tests -->
+<!-- e.g. ruff + pytest, a fresh installer run -->
 
 ## Checklist
 
-- [ ] `make check` passes
+- [ ] `uv run ruff check . && uv run pytest` passes
 - [ ] Updated `CHANGELOG.md` if this is a user-facing change
 - [ ] PR title follows the commit convention (e.g. `fix:`, `feat:`, `docs:`)
 

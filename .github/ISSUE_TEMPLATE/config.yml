@@ -1,8 +1,8 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 contact_links:
+  - name: holo CLI bug or feature request
+    url: https://github.com/hcompai/hai-agents-python/issues/new
+    about: The holo CLI lives in hai-agents-python. File it there.
   - name: Security vulnerability
     url: https://github.com/hcompai/holo-desktop-cli/security/advisories/new
     about: Report security issues privately via a GitHub advisory, not a public issue.
-  - name: Questions and general help
-    url: mailto:contact@hcompany.ai
-    about: For usage questions and anything that isn't a bug or feature request.

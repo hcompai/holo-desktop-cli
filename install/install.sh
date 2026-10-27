@@ -24,11 +24,21 @@ platform_key() {
   machine="$(uname -m)"
   case "$system:$machine" in
     Darwin:arm64) printf 'darwin-arm64' ;;
-    Darwin:x86_64) fail "Holo Desktop installer does not support darwin-x86_64 yet because hai-agent-runtime is not published for macOS Intel yet." ;;
+    Darwin:x86_64) fail "The holo installer does not support darwin-x86_64 yet because hai-agent-runtime is not published for macOS Intel yet." ;;
     Linux:x86_64) printf 'linux-x86_64' ;;
-    Linux:*) fail "Holo Desktop installer does not support linux-$machine yet because hai-agent-runtime is not published for Linux yet." ;;
-    *) fail "Holo Desktop installer does not support $system-$machine yet." ;;
+    Linux:*) fail "The holo installer does not support linux-$machine yet because hai-agent-runtime is not published for Linux yet." ;;
+    *) fail "The holo installer does not support $system-$machine yet." ;;
   esac
+}
+
+# Login items from holo-desktop-cli 1.0 run `holo guard`, which the holo CLI no longer has.
+remove_legacy_guard() {
+  plist="$HOME/Library/LaunchAgents/ai.hcompany.holo.guard.plist"
+  if [ -f "$plist" ]; then
+    launchctl bootout "gui/$(id -u)" "$plist" 2>/dev/null || true
+    rm -f "$plist"
+  fi
+  rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/holo-guard.desktop"
 }
 
 need_cmd() {
@@ -176,7 +186,7 @@ cp "$UV_FOUND" "$HOLO_HOME/toolchain/uv/uv"
 chmod 755 "$HOLO_HOME/toolchain/uv/uv"
 UV_BIN="$HOLO_HOME/toolchain/uv/uv"
 
-info "Installing Python $PYTHON_VERSION and Holo Desktop CLI..."
+info "Installing Python $PYTHON_VERSION and the holo CLI..."
 UV_PYTHON_INSTALL_DIR="$HOLO_HOME/python" \
 UV_TOOL_DIR="$HOLO_HOME/tools" \
 UV_TOOL_BIN_DIR="$HOLO_HOME/bin" \
@@ -191,18 +201,13 @@ if [ "${HOLO_INSTALL_SKIP_PATH:-}" != "1" ]; then
   append_path_block
 fi
 
-if [ "${HOLO_INSTALL_SKIP_RUN_SETUP:-}" != "1" ]; then
-  UV_PYTHON_INSTALL_DIR="$HOLO_HOME/python" \
-  UV_TOOL_DIR="$HOLO_HOME/tools" \
-  UV_TOOL_BIN_DIR="$HOLO_HOME/bin" \
-  "$UV_BIN" run --with "$PACKAGE_SPEC" python -m holo_desktop.installer_bootstrap
-fi
-
+remove_legacy_guard
 info ""
 info "Holo installed."
 info "Open a new terminal, then run:"
 info "  holo login"
-info "  holo run \"Open Calculator and compute 2+2\""
+info "  holo -a h/holo-desktop \"Open Calculator and compute 2+2\""
+info "Docs: https://hub.hcompany.ai/agents-api/cli"
 info ""
 info "Installed command:"
 info "  $HOLO_HOME/bin/holo"

@@ -4,6 +4,12 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-10-27
+
+- `holo-desktop-cli` now only installs the `holo` CLI from [`hai-agents`](https://github.com/hcompai/hai-agents-python) 1.4.0+ (`hai-agents[cli,workstation]`). See the README for the command mapping.
+- Removed `holo guard`, `holo install`, `holo stop`, and the `holo_desktop` MCP tool. Use `Esc` twice, `holo mcp install`, `holo local stop`, and `run_agent`.
+- The installer removes the old `holo guard` login item.
+
 ## [1.0.4] - 2026-10-23
 
 - Requires `hai-agents` 1.3.0+ (`hai-agent-runtime` 0.1.22).

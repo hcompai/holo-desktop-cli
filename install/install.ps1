@@ -20,7 +20,7 @@ function Get-HoloWindowsPlatform {
         [System.Runtime.InteropServices.OSPlatform, mscorlib]::Windows
     )
     if (-not $RunningOnWindows) {
-        Fail "Holo Desktop installer does not support this operating system from install.ps1. Use install.sh on macOS or Linux."
+        Fail "The holo installer does not support this operating system from install.ps1. Use install.sh on macOS or Linux."
     }
 
     $Architecture = [System.Runtime.InteropServices.RuntimeInformation, mscorlib]::OSArchitecture.ToString()
@@ -28,7 +28,7 @@ function Get-HoloWindowsPlatform {
         "X64" { return "windows-x86_64" }
         "Arm64" { return "windows-arm64" }
         default {
-            Fail "Holo Desktop installer does not support Windows architecture '$Architecture'. Supported architectures: X64, Arm64."
+            Fail "The holo installer does not support Windows architecture '$Architecture'. Supported architectures: X64, Arm64."
         }
     }
 }
@@ -156,18 +156,16 @@ try {
         [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
     }
 
-    if ($env:HOLO_INSTALL_SKIP_RUN_SETUP -ne "1") {
-        & $UvExe run --python $PythonExe --with $PackageSpec @BinaryDependencyArgs python -m holo_desktop.installer_bootstrap
-        if ($LASTEXITCODE -ne 0) {
-            Fail "Holo Desktop runtime setup failed"
-        }
-    }
+    # Login items from holo-desktop-cli 1.0 run `holo guard`, which the holo CLI no longer has.
+    $Appdata = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $HOME "AppData\Roaming" }
+    Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $Appdata "Microsoft\Windows\Start Menu\Programs\Startup\holo-guard.cmd")
 
     Write-Host ""
     Write-Host "Holo installed."
     Write-Host "Open a new PowerShell window, then run:"
     Write-Host "  holo login"
-    Write-Host "  holo run `"Open Calculator and compute 2+2`""
+    Write-Host "  holo -a h/holo-desktop `"Open Calculator and compute 2+2`""
+    Write-Host "Docs: https://hub.hcompany.ai/agents-api/cli"
 } finally {
     Remove-Item -Recurse -Force $TempRoot -ErrorAction SilentlyContinue
 }
