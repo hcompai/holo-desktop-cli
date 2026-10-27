@@ -20,7 +20,7 @@
 curl -fsSL https://install.hcompany.ai/install.sh | bash   # Windows: irm https://install.hcompany.ai/install.ps1 | iex
 ```
 
-Or with pip: `pip install "hai-agents[cli,workstation]"`.
+Or with pip: `pip install -U "hai-agents[cli,workstation]>=1.4.0"`.
 
 ## Drive your desktop
 
