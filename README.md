@@ -67,6 +67,8 @@ See [Customize every run](https://hub.hcompany.ai/agents-api/cli#customize-every
 | 1.0 | Now |
 | --- | --- |
 | `holo run "task"` | `holo -a h/holo-desktop "task"` |
+| `holo run --model <id> "task"` | `holo -a h/holo-desktop -o agent.model=<id> "task"` |
+| `holo run --base-url <your server>` | `HAI_AGENT_RUNTIME_BASE_URL=<your server> holo --local -a h/holo-desktop` (still needs `holo login`) |
 | `holo install <host>` | `holo mcp install` |
 | `holo stop` | `holo local stop` |
 | `holo guard` | Built in: `Esc` twice during a run |
@@ -77,7 +79,8 @@ After upgrading:
 
 1. Run `holo login` again.
 2. Run `holo mcp install` to refresh your coding agents.
-3. Delete the old `holo-desktop` skill links from `~/.claude/skills`, `~/.agents/skills`, and your other agents' skill folders.
+3. Skills that 1.0 copied into `~/.holo/skills` now apply to every agent. Delete the ones you don't want.
+4. Delete the old `holo-desktop` skill links from `~/.claude/skills`, `~/.agents/skills`, and your other agents' skill folders.
 
 The installer removes the old `holo guard` login item. With pip, remove it yourself: `~/Library/LaunchAgents/ai.hcompany.holo.guard.plist` on macOS, `holo-guard.cmd` in your Startup folder on Windows, `~/.config/autostart/holo-guard.desktop` on Linux.
 
