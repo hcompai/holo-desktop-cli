@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -559,16 +559,16 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.4.0"
+version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7a/8a/a1a5a161b274f8ca84e3f54c67469b8abd9446dd2d7c261917bfe0ecc2b1/hai_agents-1.4.0.tar.gz", hash = "sha256:4c4182bb471e0b16ef34fb661a61df63480b7930de787f872bf703be6305d8ce", size = 1418083, upload-time = "2026-10-27T16:03:02.086Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/65/d20dbb6ef671e298a2364395746f6def6786d4f50771e6c3be9796301cbc/hai_agents-1.4.1.tar.gz", hash = "sha256:88300dca93d06093104b75c50125eb6657623ea4bcdb1769a125780b76e46a2c", size = 1418091, upload-time = "2026-10-29T11:09:21.676Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/b5/a26e252cd89854e5da974c21c5aa9760b57c8184bedc98a41897f8aa9e34/hai_agents-1.4.0-py3-none-any.whl", hash = "sha256:c89bf06f9686ab3758cd3576a5fff966c04cbc0935ed7e93920885cc9ff201e5", size = 343789, upload-time = "2026-10-27T16:03:00.109Z" },
+    { url = "https://files.pythonhosted.org/packages/68/e9/6f5b755fa4a8f45f9c54cd2e10d25e0fe4324858315c6c53e0225fbbd613/hai_agents-1.4.1-py3-none-any.whl", hash = "sha256:1fba178194be96dd72e8fd432d58607a67d607262c4181bedc325532b5af6448", size = 343807, upload-time = "2026-10-29T11:09:20.053Z" },
 ]
 
 [package.optional-dependencies]
@@ -624,7 +624,7 @@ desktop-cli = [
 
 [[package]]
 name = "holo-desktop-cli"
-version = "1.1.0"
+version = "1.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "hai-agents", extra = ["cli", "workstation"] },
@@ -637,7 +637,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "hai-agents", extras = ["cli", "workstation"], specifier = ">=1.4.0" }]
+requires-dist = [{ name = "hai-agents", extras = ["cli", "workstation"], specifier = ">=1.4.1" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1352,8 +1352,8 @@ version = "1.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "evdev", marker = "'linux' in sys_platform" },
-    { name = "pyobjc-framework-applicationservices", marker = "sys_platform == 'darwin'" },
-    { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
+    { name = "pyobjc-framework-applicationservices", marker = "python_version < '0'" },
+    { name = "pyobjc-framework-quartz", marker = "python_version < '0'" },
     { name = "python-xlib", marker = "'linux' in sys_platform" },
     { name = "six" },
 ]
@@ -1820,7 +1820,7 @@ name = "typeguard"
 version = "4.5.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version >= '3.13'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/67/1c/dfba5c4633cafc4c701f237d2ba63b416805047fd6d96aab4cfc40969f98/typeguard-4.5.2.tar.gz", hash = "sha256:5a16dcac23502039299c97c8941651bc33d7ea8cc4b2f7d6bbb1b528f6eea423", size = 80240, upload-time = "2026-05-14T12:59:40.857Z" }
 wheels = [
@@ -1871,11 +1871,11 @@ resolution-markers = [
     "python_full_version < '3.13'",
 ]
 dependencies = [
-    { name = "colorama", marker = "python_full_version < '3.13' and sys_platform == 'win32'" },
-    { name = "docstring-parser", marker = "python_full_version < '3.13'" },
-    { name = "rich", marker = "python_full_version < '3.13'" },
-    { name = "shtab", marker = "python_full_version < '3.13'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "docstring-parser" },
+    { name = "rich" },
+    { name = "shtab" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/91/9a/a471d988dd9ac8ea657714734c6834c056dad9928c270652c4f0e030a226/tyro-0.8.14.tar.gz", hash = "sha256:2516e34d21763575159459c3b15fe4a13472a2166dff32169c9d7aab70853058", size = 141970, upload-time = "2024-10-23T10:04:44.327Z" }
 wheels = [
@@ -1892,12 +1892,12 @@ resolution-markers = [
     "python_full_version == '3.13.*'",
 ]
 dependencies = [
-    { name = "colorama", marker = "python_full_version >= '3.13' and sys_platform == 'win32'" },
-    { name = "docstring-parser", marker = "python_full_version >= '3.13'" },
-    { name = "rich", marker = "python_full_version >= '3.13'" },
-    { name = "shtab", marker = "python_full_version >= '3.13'" },
-    { name = "typeguard", marker = "python_full_version >= '3.13'" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.13'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "docstring-parser" },
+    { name = "rich" },
+    { name = "shtab" },
+    { name = "typeguard" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/4d/40/7a84e7652f75526b31f45c2565b5db9e9e21d37201fd44bc341ea90edc53/tyro-0.9.35.tar.gz", hash = "sha256:e38dd3528ae6f8fc74e21c7e21ac412d22d237739758d521f470e7a20eb46e92", size = 325648, upload-time = "2025-10-13T08:55:57.631Z" }
 wheels = [
