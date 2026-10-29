@@ -4,6 +4,10 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.1] - 2026-10-29
+
+- Requires `hai-agents` 1.4.1+ (`hai-agent-runtime` 0.1.23).
+
 ## [1.1.0] - 2026-10-27
 
 - `holo-desktop-cli` now only installs the `holo` CLI from [`hai-agents`](https://github.com/hcompai/hai-agents-python) 1.4.0+ (`hai-agents[cli,workstation]`). See the README for the command mapping.
