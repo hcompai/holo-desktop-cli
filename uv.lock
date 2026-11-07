@@ -559,16 +559,16 @@ wheels = [
 
 [[package]]
 name = "hai-agents"
-version = "1.4.1"
+version = "1.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d3/65/d20dbb6ef671e298a2364395746f6def6786d4f50771e6c3be9796301cbc/hai_agents-1.4.1.tar.gz", hash = "sha256:88300dca93d06093104b75c50125eb6657623ea4bcdb1769a125780b76e46a2c", size = 1418091, upload-time = "2026-10-29T11:09:21.676Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/82/3e625e0b9e09f9dd85cd9b28d08030d753ff73bf2cd14d64bb27ae4c151c/hai_agents-1.4.3.tar.gz", hash = "sha256:f64ea6a3b5438c2249f84d4b5fa7c01aa58c8bfbf8ba466141487d2c4a5fccd6", size = 1427373, upload-time = "2026-10-30T15:32:39.202Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/68/e9/6f5b755fa4a8f45f9c54cd2e10d25e0fe4324858315c6c53e0225fbbd613/hai_agents-1.4.1-py3-none-any.whl", hash = "sha256:1fba178194be96dd72e8fd432d58607a67d607262c4181bedc325532b5af6448", size = 343807, upload-time = "2026-10-29T11:09:20.053Z" },
+    { url = "https://files.pythonhosted.org/packages/15/4d/ed6bc61a89bfd45de724faf17a4a44226c494d87178f20fd974f1715cddc/hai_agents-1.4.3-py3-none-any.whl", hash = "sha256:46757270967c979bd40a47e9bf12db9e3e4e7be23ad7236f8dcb2adf6b5cf5ce", size = 356484, upload-time = "2026-10-30T15:32:37.231Z" },
 ]
 
 [package.optional-dependencies]
@@ -624,7 +624,7 @@ desktop-cli = [
 
 [[package]]
 name = "holo-desktop-cli"
-version = "1.1.1"
+version = "1.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "hai-agents", extra = ["cli", "workstation"] },
@@ -637,7 +637,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "hai-agents", extras = ["cli", "workstation"], specifier = ">=1.4.1" }]
+requires-dist = [{ name = "hai-agents", extras = ["cli", "workstation"], specifier = ">=1.4.3" }]
 
 [package.metadata.requires-dev]
 dev = [
