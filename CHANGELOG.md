@@ -4,6 +4,10 @@ Notable changes per release. Versions follow [SemVer](https://semver.org). Dates
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.3] - 2026-11-28
+
+- Requires `hai-agents` 1.7.1+ (`hai-agent-runtime` 0.1.36).
+
 ## [1.1.2] - 2026-11-24
 
 - Requires `hai-agents` 1.5.8+ (`hai-agent-runtime` 0.1.34).
